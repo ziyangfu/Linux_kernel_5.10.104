@@ -181,19 +181,21 @@ static void anon_vma_chain_link(struct vm_area_struct *vma,
  */
 int __anon_vma_prepare(struct vm_area_struct *vma)
 {
+	// 获取进程虚拟内存空间
 	struct mm_struct *mm = vma->vm_mm;
 	struct anon_vma *anon_vma, *allocated;
 	struct anon_vma_chain *avc;
 
 	might_sleep();
-
+	// 分配 anon_vma_chain 实例
 	avc = anon_vma_chain_alloc(GFP_KERNEL);
 	if (!avc)
 		goto out_enomem;
-
+	// 在相邻的虚拟内存区域 VMA 中查找可复⽤的 anon_vma
 	anon_vma = find_mergeable_anon_vma(vma);
 	allocated = NULL;
 	if (!anon_vma) {
+		// 没有可复⽤的 anon_vma 则创建⼀个新的实例
 		anon_vma = anon_vma_alloc();
 		if (unlikely(!anon_vma))
 			goto out_enomem_free_avc;
@@ -204,6 +206,7 @@ int __anon_vma_prepare(struct vm_area_struct *vma)
 	/* page_table_lock to protect against threads */
 	spin_lock(&mm->page_table_lock);
 	if (likely(!vma->anon_vma)) {
+		// VMA 中的 anon_vma 属性就是在这⾥赋值的
 		vma->anon_vma = anon_vma;
 		anon_vma_chain_link(vma, avc, anon_vma);
 		/* vma reference or self-parent link for new root */

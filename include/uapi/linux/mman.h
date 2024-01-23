@@ -13,8 +13,8 @@
 #define OVERCOMMIT_ALWAYS		1
 #define OVERCOMMIT_NEVER		2
 
-#define MAP_SHARED	0x01		/* Share changes */
-#define MAP_PRIVATE	0x02		/* Changes are private */
+#define MAP_SHARED	0x01		/* Share changes 共享映射 */
+#define MAP_PRIVATE	0x02		/* Changes are private 私有映射 */
 #define MAP_SHARED_VALIDATE 0x03	/* share + validate extension flags */
 
 /*

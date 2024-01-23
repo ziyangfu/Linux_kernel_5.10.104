@@ -19,8 +19,8 @@
 
 /* 0x01 - 0x03 are defined in linux/mman.h */
 #define MAP_TYPE	0x0f		/* Mask for type of mapping */
-#define MAP_FIXED	0x10		/* Interpret addr exactly */
-#define MAP_ANONYMOUS	0x20		/* don't use a file */
+#define MAP_FIXED	0x10		/* Interpret addr exactly 强制使用该地址*/
+#define MAP_ANONYMOUS	0x20		/* don't use a file 匿名映射 */
 
 /* 0x0100 - 0x4000 flags are defined in asm-generic/mman.h */
 #define MAP_POPULATE		0x008000	/* populate (prefault) pagetables */

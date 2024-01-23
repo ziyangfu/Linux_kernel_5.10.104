@@ -26,6 +26,14 @@
  * the anon_vma object itself: we're guaranteed no page can be
  * pointing to this anon_vma once its vma list is empty.
  */
+
+/**
+ * 谢宝友 Linux2.6注释版，拷贝过来如下：
+ * 用于共享匿名页的反射映射。
+ *		当创建新进程时，父进程的所有页框，包含匿名页，都同时分配给子进程。
+ *		当进程创建线性区时，如果指定了MAP_ANONYMOUS和MAP_SHARED，则这个区域内的页将由该进程后面的子进程共享。
+ * 当内核为一个匿名线性区分配第一页时，内核创建一个新的anon_vma数据结构。
+ */
 struct anon_vma {
 	struct anon_vma *root;		/* Root of this anon_vma tree */
 	struct rw_semaphore rwsem;	/* W: modification, R: walking the list */
@@ -58,6 +66,7 @@ struct anon_vma {
 	 */
 
 	/* Interval tree of private "related" vmas */
+	// 这颗红⿊树上管理的全部都是与该 anon_vma 关联的 anon_vma_chain
 	struct rb_root_cached rb_root;
 };
 
@@ -75,9 +84,13 @@ struct anon_vma {
  * which link all the VMAs associated with this anon_vma.
  */
 struct anon_vma_chain {
-	struct vm_area_struct *vma;
+	// 匿名⻚关联的进程虚拟内存空间（vma属于⼀个特定的进程，多个进程多个vma）
+	struct vm_area_struct *vma; 
+	// 匿名⻚ page 指向的 anon_vma
 	struct anon_vma *anon_vma;
+	// 指向 vm_area_struct 中的 anon_vma_chain 列表
 	struct list_head same_vma;   /* locked by mmap_lock & page_table_lock */
+	// anon_vma 管理的红⿊树中该 anon_vma_chain 对应的红⿊树节点
 	struct rb_node rb;			/* locked by anon_vma->rwsem */
 	unsigned long rb_subtree_last;
 #ifdef CONFIG_DEBUG_VM_RB

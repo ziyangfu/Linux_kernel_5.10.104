@@ -303,11 +303,11 @@ struct lruvec {
 
 /* LRU Isolation modes. */
 typedef unsigned __bitwise isolate_mode_t;
-
+// 水位线
 enum zone_watermarks {
-	WMARK_MIN,
-	WMARK_LOW,
-	WMARK_HIGH,
+	WMARK_MIN,    	// 页最小阈值
+	WMARK_LOW,		// 页低阈值
+	WMARK_HIGH,		// 页高阈值
 	NR_WMARK
 };
 
@@ -429,7 +429,9 @@ struct zone {
 	/* Read-mostly fields */
 
 	/* zone watermarks, access with *_wmark_pages(zone) macros */
+	// 物理内存区域中的水位线
 	unsigned long _watermark[NR_WMARK];
+	// 优化内存碎⽚对内存分配的影响，可以动态改变内存区域的基准⽔位线
 	unsigned long watermark_boost;
 
 	unsigned long nr_reserved_highatomic;
@@ -703,6 +705,7 @@ struct deferred_split {
  * Memory statistics and page replacement data structures are maintained on a
  * per-zone basis.
  */
+// 对于NUMA架构，该结构体有多个， 对于UMA架构，则只有一个
 typedef struct pglist_data {
 	/*
 	 * node_zones contains just the zones for THIS node. Not all of the
@@ -1212,7 +1215,8 @@ struct mem_section {
 	 * Making it a UL at least makes someone do a cast
 	 * before using it wrong.
 	 */
-	unsigned long section_mem_map;
+	// 一个指针，指向 section 中管理连续内存的 page 数组
+	unsigned long section_mem_map; 
 
 	struct mem_section_usage *usage;
 #ifdef CONFIG_PAGE_EXTENSION

@@ -66,7 +66,7 @@ struct mem_cgroup;
 #else
 #define _struct_page_alignment
 #endif
-
+/** ����һ������ҳ��ʹ�ô�����union��λ�򣬽�Լ�ڴ� */
 struct page {
 	unsigned long flags;		/* Atomic flags, some possibly
 					 * updated asynchronously */
@@ -83,9 +83,16 @@ struct page {
 			 * pgdat->lru_lock.  Sometimes used as a generic list
 			 * by the page owner.
 			 */
+			// ?��ָ������? page �����������ĸ� lru ������
 			struct list_head lru;
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
-			struct address_space *mapping;
+			// ��� page Ϊ?��?�Ļ�����λΪ0��ָ�� page ���ڵ� page cache
+			// ��� page Ϊ����?�Ļ�����λΪ1��ָ�����Ӧ�����ַ�ռ������ӳ���� anon_vma
+
+			// ÿ���ļ�ҳ����ҳ���ٻ���page cache����Ӧ�Ľṹ�����address_space
+			struct address_space *mapping;  
+			// ��� page Ϊ?��?�Ļ���index Ϊ page �� page cache �е�����
+			// ��� page Ϊ����?�Ļ�����?����?�ڶ�Ӧ���������ڴ����� VMA �е�ƫ��
 			pgoff_t index;		/* Our offset within mapping. */
 			/**
 			 * @private: Mapping-private opaque data.
@@ -93,6 +100,7 @@ struct page {
 			 * Used for swp_entry_t if PageSwapCache.
 			 * Indicates order in the buddy system if PageBuddy.
 			 */
+			// �ڲ�ͬ�����£�private ָ��ĳ�����Ϣ��ͬ
 			unsigned long private;
 		};
 		struct {	/* page_pool used by netstack */
@@ -104,11 +112,15 @@ struct page {
 		};
 		struct {	/* slab, slob and slub */
 			union {
+				// ?��ָ����ǰ page λ�� slab �е��ĸ��������������
 				struct list_head slab_list;
 				struct {	/* Partial pages */
+				// �� page λ�� slab �ṹ�е�ĳ������������ʱ��next ָ��?��ָ�������е���?�� page
 					struct page *next;
 #ifdef CONFIG_64BIT
+					// ��? slab ���ܹ�ӵ�е� page ����
 					int pages;	/* Nr of pages left */
+					// ��? slab ��ӵ�е��ض����͵Ķ������
 					int pobjects;	/* Approximate count */
 #else
 					short int pages;
@@ -116,25 +128,35 @@ struct page {
 #endif
 				};
 			};
+			// ?��ָ��ǰ page ������ slab �����ṹ
 			struct kmem_cache *slab_cache; /* not slob */
 			/* Double-word boundary */
+			// ָ�� page �еĵ�?��δ�����ȥ�Ŀ��ж���
 			void *freelist;		/* first free object */
 			union {
+				// ָ�� page �еĵ�?������
 				void *s_mem;	/* slab: first object */
 				unsigned long counters;		/* SLUB */
 				struct {			/* SLUB */
+					// ��? slab ���Ѿ��������ȥ�Ķ������
 					unsigned inuse:16;
+					// slab �����еĶ������
 					unsigned objects:15;
+					// ��ǰ�ڴ�? page �� slab ������ CPU ���ػ����б��У�frozen = 1������ frozen
 					unsigned frozen:1;
 				};
 			};
 		};
-		struct {	/* Tail pages of compound page */
+		struct {	/* Tail pages of compound page�� ����? compound page ��� */
+			// ����?��β?ָ��??
 			unsigned long compound_head;	/* Bit zero is set */
 
 			/* First tail page only */
+			// ?���ͷŸ���?������������������??��
 			unsigned char compound_dtor;
+			// �ø���?�ж��ٸ� page ���
 			unsigned char compound_order;
+			// �ø���?�����ٸ�����ʹ?���ڴ�?����ӳ��ĸ��??�б���
 			atomic_t compound_mapcount;
 			unsigned int compound_nr; /* 1 << compound_order */
 		};
@@ -175,6 +197,7 @@ struct page {
 		};
 
 		/** @rcu_head: You can use this to free a page by RCU. */
+		// ��? slab ����Ҫ�ͷŻ��յĶ�������
 		struct rcu_head rcu_head;
 	};
 
@@ -183,6 +206,7 @@ struct page {
 		 * If the page can be mapped to userspace, encodes the number
 		 * of times this page is referenced by a page table.
 		 */
+		// ��?�� page ӳ���˶��ٸ����̵������ڴ�ռ䣬?�� page ���Ա��������ӳ��
 		atomic_t _mapcount;
 
 		/*
@@ -198,6 +222,7 @@ struct page {
 	};
 
 	/* Usage count. *DO NOT USE DIRECTLY*. See page_ref.h */
+	// �ں�����?������?�Ĵ�������?������?�Ļ�Ծ�̶ȡ�
 	atomic_t _refcount;
 
 #ifdef CONFIG_MEMCG
@@ -218,6 +243,7 @@ struct page {
 	 * WANT_PAGE_VIRTUAL in asm/page.h
 	 */
 #if defined(WANT_PAGE_VIRTUAL)
+	// �ڴ�?��Ӧ�������ڴ��ַ
 	void *virtual;			/* Kernel virtual address (NULL if
 					   not kmapped, ie. highmem) */
 #endif /* WANT_PAGE_VIRTUAL */
@@ -304,6 +330,7 @@ struct vm_userfaultfd_ctx {};
  * space that has a special rule for the page-fault handlers (ie a shared
  * library, the executable area etc).
  */
+// mm_struct下面包含一堆的VMA，堆区、栈区、代码区、数据区等均为一个VMA，匿名及文件映射区有多个VMA
 struct vm_area_struct {
 	/* The first cache line has the info for VMA tree walking. */
 
@@ -325,7 +352,7 @@ struct vm_area_struct {
 	unsigned long rb_subtree_gap;
 
 	/* Second cache line starts here. */
-
+	// 表示VAM属于哪个MM
 	struct mm_struct *vm_mm;	/* The address space we belong to. */
 
 	/*
@@ -350,8 +377,11 @@ struct vm_area_struct {
 	 * can only be in the i_mmap tree.  An anonymous MAP_PRIVATE, stack
 	 * or brk vma (with NULL file) can only be in an anon_vma list.
 	 */
+	// 存储该 VMA 中所包含的所有匿名⻚ anon_vma
 	struct list_head anon_vma_chain; /* Serialized by mmap_lock &
 					  * page_table_lock */
+	// ⽤于快速判断 VMA 有没有对应的匿名 page
+	// ⼀个 VMA 可以包含多个 page，但是该区域内的所有 page 只需要⼀个 anon_vma 来反向映射即可
 	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */
 
 	/* Function pointers to deal with this struct. */

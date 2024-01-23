@@ -460,6 +460,7 @@ static int inet_csk_wait_for_connect(struct sock *sk, long timeo)
 /*
  * This will accept the next outstanding connection.
  */
+// accept系统调用最终会调到这里
 struct sock *inet_csk_accept(struct sock *sk, int flags, int *err, bool kern)
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);

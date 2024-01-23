@@ -554,6 +554,8 @@ extern struct page *alloc_pages_vma(gfp_t gfp_mask, int order,
 #else
 static inline struct page *alloc_pages(gfp_t gfp_mask, unsigned int order)
 {
+	// 这个返回的是物理内存页的第一个struct page指针
+	// numa_node_id() == 0， UMA是只有一个节点的伪NUMA
 	return alloc_pages_node(numa_node_id(), gfp_mask, order);
 }
 #define alloc_pages_vma(gfp_mask, order, vma, addr, node, false)\
@@ -561,7 +563,7 @@ static inline struct page *alloc_pages(gfp_t gfp_mask, unsigned int order)
 #define alloc_hugepage_vma(gfp_mask, vma, addr, order) \
 	alloc_pages(gfp_mask, order)
 #endif
-#define alloc_page(gfp_mask) alloc_pages(gfp_mask, 0)
+#define alloc_page(gfp_mask) alloc_pages(gfp_mask, 0)   // 分配一页
 #define alloc_page_vma(gfp_mask, vma, addr)			\
 	alloc_pages_vma(gfp_mask, 0, vma, addr, numa_node_id(), false)
 

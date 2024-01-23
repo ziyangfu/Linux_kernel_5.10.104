@@ -5198,7 +5198,7 @@ another_round:
 
 	if (pfmemalloc)
 		goto skip_taps;
-
+	// tcpdump抓包点
 	list_for_each_entry_rcu(ptype, &ptype_all, list) {
 		if (pt_prev)
 			ret = deliver_skb(skb, pt_prev, orig_dev);

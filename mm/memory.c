@@ -3523,10 +3523,12 @@ out_release:
 }
 
 /*
- * We enter with non-exclusive mmap_lock (to exclude vma changes,
+ * We enter with non-exclusive【非独占的】 mmap_lock (to exclude vma changes,
  * but allow concurrent faults), and pte mapped but not yet locked.
  * We return with mmap_lock still held, but pte unmapped and unlocked.
  */
+// 匿名页缺页处理函数
+// anonymous:匿名的
 static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
@@ -3578,6 +3580,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	}
 
 	/* Allocate our own private page. */
+	// 为匿名页创建anon_vma实例和anon_vma_chain实例
 	if (unlikely(anon_vma_prepare(vma)))
 		goto oom;
 	page = alloc_zeroed_user_highpage_movable(vma, vmf->address);
@@ -3619,6 +3622,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	}
 
 	inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
+	// 建⽴反向映射关系
 	page_add_new_anon_rmap(page, vma, vmf->address, false);
 	lru_cache_add_inactive_or_unevictable(page, vma);
 setpte:

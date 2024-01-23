@@ -4920,6 +4920,10 @@ static inline bool prepare_alloc_pages(gfp_t gfp_mask, unsigned int order,
 /*
  * This is the 'heart' of the zoned buddy allocator.
  */
+/**
+ * gfp_mask	: 内核中定义的⼀个⽤于规范物理内存分配⾏为的修饰符
+ * order	: 分配阶，分配2的order次方的物理内存页
+ * */ 
 struct page *
 __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 							nodemask_t *nodemask)
@@ -4989,13 +4993,17 @@ EXPORT_SYMBOL(__alloc_pages_nodemask);
  * address cannot represent highmem pages. Use alloc_pages and then kmap if
  * you need to access high mem.
  */
+// 分配页，功能与alloc_pages一致，不同的是这里返回的是物理内存页对应的虚拟内存页地址
 unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order)
 {
 	struct page *page;
-
+	// 不能在⾼端内存中分配物理⻚，因为⽆法直接映射获取虚拟内存地址
+	// 如果要在高端内存中分配物理页，则后面需要调用kmap映射将page映射到内核虚拟地址空间
 	page = alloc_pages(gfp_mask & ~__GFP_HIGHMEM, order);
 	if (!page)
 		return 0;
+	// 将直接映射区中的物理内存⻚转换为虚拟内存地址
+	// 只适用于内核虚拟空间的直接映射区
 	return (unsigned long) page_address(page);
 }
 EXPORT_SYMBOL(__get_free_pages);
@@ -7946,14 +7954,23 @@ void setup_per_zone_wmarks(void)
  * 8192MB:	11584k
  * 16384MB:	16384k
  */
+/**
+ * 计算最小水位线WMARK_MIN，min_free_kbytes的单位是KB
+ * LOW和HIGH水位线根据WMARK_MIN计算
+ * 可通过sysctl动态设置/proc/sys/vm/min_free_kbytes来调整最小水位线，
+ * 进而调整三条水位线
+ * */ 
 int __meminit init_per_zone_wmark_min(void)
 {
+	// 低位内存区域（除⾼端内存之外）的总和
 	unsigned long lowmem_kbytes;
+	// 待计算的值
 	int new_min_free_kbytes;
-
+	// 将低位内存区域内存容量总的⻚数转换为 KB
 	lowmem_kbytes = nr_free_buffer_pages() * (PAGE_SIZE >> 10);
+	// min_free_kbytes 计算逻辑：对 lowmem_kbytes * 16 进⾏开平⽅
 	new_min_free_kbytes = int_sqrt(lowmem_kbytes * 16);
-
+	// min_free_kbytes 的范围为 128 到 262144 KB 之间
 	if (new_min_free_kbytes > user_min_free_kbytes) {
 		min_free_kbytes = new_min_free_kbytes;
 		if (min_free_kbytes < 128)
@@ -7964,8 +7981,10 @@ int __meminit init_per_zone_wmark_min(void)
 		pr_warn("min_free_kbytes is not updated to %d because user defined value %d is preferred\n",
 				new_min_free_kbytes, user_min_free_kbytes);
 	}
+	// 计算内存区域内的三条⽔位线
 	setup_per_zone_wmarks();
 	refresh_zone_stat_thresholds();
+	// 计算内存区域的预留内存⼤⼩，防⽌被⾼位内存区域过度挤压占⽤
 	setup_per_zone_lowmem_reserve();
 
 #ifdef CONFIG_NUMA

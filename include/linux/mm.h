@@ -34,7 +34,7 @@
 
 struct mempolicy;
 struct anon_vma;
-struct anon_vma_chain;
+;
 struct file_ra_state;
 struct user_struct;
 struct writeback_control;
