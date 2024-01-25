@@ -16,15 +16,18 @@ struct vm_area_struct;
  */
 
 /* Plain integer GFP bitmasks. Do not use this directly. */
+// get free page 掩码
 #define ___GFP_DMA		0x01u
 #define ___GFP_HIGHMEM		0x02u
 #define ___GFP_DMA32		0x04u
-#define ___GFP_MOVABLE		0x08u
-#define ___GFP_RECLAIMABLE	0x10u
-#define ___GFP_HIGH		0x20u
-#define ___GFP_IO		0x40u
-#define ___GFP_FS		0x80u
-#define ___GFP_ZERO		0x100u
+#define ___GFP_MOVABLE		0x08u	/* ⽤于指定分配的⻚⾯是可以移动的 */
+#define ___GFP_RECLAIMABLE	0x10u  /* ⽤于指定分配的⻚⾯是可以回收的 */
+#define ___GFP_HIGH		0x20u /** 表⽰该内存分配请求是⾼优先级的，内核急切的需要内存 */
+/* 内核在分配物理内存的时候可以发起磁盘 IO 操作，例如将不常用的内存swap出去 */
+#define ___GFP_IO		0x40u 
+#define ___GFP_FS		0x80u  /* 允许内核执⾏底层⽂件系统操作 */
+#define ___GFP_ZERO		0x100u /* 在内核分配内存成功之后，将内存⻚初始化填充字节 0 */
+/** 内存在分配物理内存的时候不允许睡眠, 必须是原⼦性地进⾏内存分配*/
 #define ___GFP_ATOMIC		0x200u
 #define ___GFP_DIRECT_RECLAIM	0x400u
 #define ___GFP_KSWAPD_RECLAIM	0x800u
@@ -446,7 +449,16 @@ static inline bool gfpflags_normal_context(const gfp_t gfp_flags)
 	| 1 << (___GFP_MOVABLE | ___GFP_DMA32 | ___GFP_HIGHMEM)		      \
 	| 1 << (___GFP_MOVABLE | ___GFP_DMA32 | ___GFP_DMA | ___GFP_HIGHMEM)  \
 )
-
+/**
+ * 将我们在物理内存分配接⼝中指定的 gfp_mask 掩码转换为物理内存区域,
+ * 返回的这个物理内存区域是内存分配的最⾼级内存区域,如果这个最⾼级内存区域不⾜以满⾜内存分
+ * 配的需求，则按照 ZONE_HIGHMEM -> ZONE_NORMAL -> ZONE_DMA 的顺序依次降级。
+ * 		gfp_t 掩码 						| 				内存区域降级策略
+		什么都没有设置 					  |				ZONE_NORMAL -> ZONE_DMA
+		__GFP_DMA 						|			  ZONE_DMA
+		__GFP_DMA & __GFP_HIGHMEM		|			 ZONE_DMA
+		__GFP_HIGHMEM 					|		ZONE_HIGHMEM -> ZONE_NORMAL -> ZONE_DMA
+*/
 static inline enum zone_type gfp_zone(gfp_t flags)
 {
 	enum zone_type z;
@@ -555,7 +567,7 @@ extern struct page *alloc_pages_vma(gfp_t gfp_mask, int order,
 static inline struct page *alloc_pages(gfp_t gfp_mask, unsigned int order)
 {
 	// 这个返回的是物理内存页的第一个struct page指针
-	// numa_node_id() == 0， UMA是只有一个节点的伪NUMA
+	// numa_node_id()是NUMA节点ID，这里 == 0， UMA是只有一个节点的伪NUMA
 	return alloc_pages_node(numa_node_id(), gfp_mask, order);
 }
 #define alloc_pages_vma(gfp_mask, order, vma, addr, node, false)\

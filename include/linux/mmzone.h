@@ -343,7 +343,7 @@ struct per_cpu_nodestat {
 };
 
 #endif /* !__GENERATING_BOUNDS.H */
-
+// 物理内存按照zone划分
 enum zone_type {
 	/*
 	 * ZONE_DMA and ZONE_DMA32 are used when there are peripherals not able

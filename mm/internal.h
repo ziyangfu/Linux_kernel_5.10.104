@@ -134,9 +134,13 @@ extern pmd_t *mm_find_pmd(struct mm_struct *mm, unsigned long address);
  * by a const pointer.
  */
 struct alloc_context {
+	// 运⾏进程 CPU 所在 NUMA 节点以及其所有备⽤ NUMA 节点中允许内存分配的内存区域
 	struct zonelist *zonelist;
+	// NUMA 节点状态掩码
 	nodemask_t *nodemask;
+	// 内存分配优先级最⾼的内存区域 zone
 	struct zoneref *preferred_zoneref;
+	// 物理内存⻚的迁移类型分为：不可迁移，可回收，可迁移类型，防⽌内存碎⽚
 	int migratetype;
 
 	/*
@@ -149,7 +153,9 @@ struct alloc_context {
 	 * the target zone since higher zone than this index cannot be
 	 * usable for this allocation request.
 	 */
+	// 内存分配最⾼优先级的内存区域 zone
 	enum zone_type highest_zoneidx;
+	// 是否允许当前 NUMA 节点中的脏⻚均衡扩散迁移⾄其他 NUMA 节点
 	bool spread_dirty_pages;
 };
 
@@ -565,9 +571,15 @@ extern void set_pageblock_order(void);
 unsigned int reclaim_clean_pages_from_list(struct zone *zone,
 					    struct list_head *page_list);
 /* The ALLOC_WMARK bits are used as an index to zone->watermark */
+// 水位线
 #define ALLOC_WMARK_MIN		WMARK_MIN
 #define ALLOC_WMARK_LOW		WMARK_LOW
+/** 
+ * 表⽰在内存分配的时候，当前物理内存区域 zone 中剩余内存⻚
+ * 的数量⾄少要达到 _watermark[WMARK_HIGH] ⽔位线，才能进⾏内存的分配 
+ * */
 #define ALLOC_WMARK_HIGH	WMARK_HIGH
+/* 表⽰在内存分配过程中完全不会考虑上述三个⽔位线的影响 */
 #define ALLOC_NO_WATERMARKS	0x04 /* don't check watermarks at all */
 
 /* Mask to get the watermark bits */
