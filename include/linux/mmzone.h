@@ -39,11 +39,12 @@
 #define PAGE_ALLOC_COSTLY_ORDER 3
 
 enum migratetype {
-	MIGRATE_UNMOVABLE,
-	MIGRATE_MOVABLE,
-	MIGRATE_RECLAIMABLE,
+	MIGRATE_UNMOVABLE,    	// 不可移动
+	MIGRATE_MOVABLE,		// 可移动
+	MIGRATE_RECLAIMABLE,	// 可回收
+	// 属于 CPU ⾼速缓存中的类型，PCP 是 per_cpu_pageset 的缩写
 	MIGRATE_PCPTYPES,	/* the number of types on the pcp lists */
-	MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES,
+	MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES,  // 紧急内存
 #ifdef CONFIG_CMA
 	/*
 	 * MIGRATE_CMA migration type is designed to mimic the way
@@ -58,12 +59,23 @@ enum migratetype {
 	 * MAX_ORDER_NR_PAGES should biggest page be bigger then
 	 * a single pageblock.
 	 */
-	MIGRATE_CMA,
+	/**
+	 * CMA (Contiguous Memory Allocator) 是 Linux 内核中用于分配大块物理连续内存的机制。
+	 * 在某些情况下，例如在嵌入式系统或虚拟化环境中，需要连续的物理内存来满足特定的需求，
+	 * 而 CMA 可以帮助内核在物理内存中找到合适的块，从而分配给应用程序或设备驱动程序使用。
+	 * 
+	 * CMA 主要用于 DMA (Direct Memory Access) 操作，因为某些硬件设备要求 DMA 缓冲区必须是物理连续的内存。
+	 * 另外，用于图形处理等应用程序也可能需要大块连续的内存。
+	 * 
+	 * CMA 包含在 Linux 内核中，通过一系列的 API 接口来配置和分配连续内存。
+	 * 在使用 CMA 时需要小心，因为大量的连续内存分配可能会导致内存碎片化，影响系统性能。
+	*/
+	MIGRATE_CMA,    // 预留的连续内存 CMA
 #endif
 #ifdef CONFIG_MEMORY_ISOLATION
 	MIGRATE_ISOLATE,	/* can't allocate from here */
 #endif
-	MIGRATE_TYPES
+	MIGRATE_TYPES  	// 不代表任何区域，只是单纯表⽰⼀共有多少个迁移类型
 };
 
 /* In mm/page_alloc.c; keep in sync also with show_migration_types() there */
@@ -92,10 +104,16 @@ extern int page_group_by_mobility_disabled;
 
 #define get_pageblock_migratetype(page)					\
 	get_pfnblock_flags_mask(page, page_to_pfn(page), MIGRATETYPE_MASK)
-
+/**
+ * free_area 是将相同尺⼨的内存块组织起来，free_list 是在 free_area 的基础上近⼀步根据⻚⾯
+ * 的迁移类型将这些相同尺⼨的内存块划分到不同的双向链表中管理
+*/
 struct free_area {
+	// 有多个双向循环链表
+	// 从 MIGRATE_TYPES 的字⾯意思上可以看出，内核会根据物理内存⻚的迁移类型将这些相同尺⼨的内存块
+	// 近⼀步通过不同的双向链表重新组织起来
 	struct list_head	free_list[MIGRATE_TYPES];
-	unsigned long		nr_free;
+	unsigned long		nr_free;  // 该尺⼨的内存块在当前伙伴系统中的个数，注意是空闲内存块数量
 };
 
 static inline struct page *get_page_from_free_area(struct free_area *area,
@@ -424,7 +442,9 @@ enum zone_type {
 #ifndef __GENERATING_BOUNDS_H
 
 #define ASYNC_AND_SYNC 2
-
+/**
+ * 伙伴系统的核心数据结构
+*/
 struct zone {
 	/* Read-mostly fields */
 
@@ -467,16 +487,16 @@ struct zone {
 	/*
 	 * spanned_pages is the total pages spanned by the zone, including
 	 * holes, which is calculated as:
-	 * 	spanned_pages = zone_end_pfn - zone_start_pfn;
+	 * 	spanned_pages = zone_end_pfn - zone_start_pfn;						【包括空洞】
 	 *
 	 * present_pages is physical pages existing within the zone, which
 	 * is calculated as:
-	 *	present_pages = spanned_pages - absent_pages(pages in holes);
+	 *	present_pages = spanned_pages - absent_pages(pages in holes);  		【不包括空洞】
 	 *
 	 * managed_pages is present pages managed by the buddy system, which
 	 * is calculated as (reserved_pages includes pages allocated by the
 	 * bootmem allocator):
-	 *	managed_pages = present_pages - reserved_pages;
+	 *	managed_pages = present_pages - reserved_pages;		【不包括空洞】【不包含紧急预留内存】
 	 *
 	 * So present_pages may be used by memory hotplug or memory power
 	 * management logic to figure out unmanaged pages by checking
@@ -499,6 +519,7 @@ struct zone {
 	 * mem_hotplug_begin/end(). Any reader who can't tolerant drift of
 	 * present_pages should get_online_mems() to get a stable value.
 	 */
+	// 被伙伴系统所管理的物理内存⻚个数
 	atomic_long_t		managed_pages;
 	unsigned long		spanned_pages;
 	unsigned long		present_pages;
@@ -514,7 +535,7 @@ struct zone {
 	unsigned long		nr_isolate_pageblock;
 #endif
 
-#ifdef CONFIG_MEMORY_HOTPLUG
+#ifdef CONFIG_MEMORY_HOTPLUG   // 内存热插拔
 	/* see spanned/present_pages for more description */
 	seqlock_t		span_seqlock;
 #endif
@@ -525,6 +546,10 @@ struct zone {
 	ZONE_PADDING(_pad1_)
 
 	/* free areas of different sizes */
+	// 伙伴系统的核⼼数据结构， MAX_ORDER == 11， 物理内存页在物理上连续，分配阶 order = MAX_ORDER - 1 
+	// 伙伴系统会将物理内存区域中的空闲内存根据分配阶 order 划分出不同尺⼨的内存块，并将这些不同尺⼨的内存块
+	// 分别⽤⼀个双向链表组织起来，比如说：
+	// order = 0： 安装一页一页串起来； order= 1：按照 2^1 大小的串穿起来，每个链表元素大小都是2^1
 	struct free_area	free_area[MAX_ORDER];
 
 	/* zone flags, see below */
@@ -712,6 +737,7 @@ typedef struct pglist_data {
 	 * zones may be populated, but it is the full list. It is referenced by
 	 * this node's node_zonelists as well as other node's node_zonelists.
 	 */
+	// NUMA 节点中的物理内存区域
 	struct zone node_zones[MAX_NR_ZONES];
 
 	/*
@@ -719,8 +745,9 @@ typedef struct pglist_data {
 	 * Generally the first zones will be references to this node's
 	 * node_zones.
 	 */
+	// NUMA 节点的备⽤列表
 	struct zonelist node_zonelists[MAX_ZONELISTS];
-
+	// NUMA 节点中的物理内存区域个数
 	int nr_zones; /* number of populated zones in this node */
 #ifdef CONFIG_FLAT_NODE_MEM_MAP	/* means !SPARSEMEM */
 	struct page *node_mem_map;

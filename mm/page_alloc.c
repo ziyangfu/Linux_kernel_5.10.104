@@ -2334,6 +2334,10 @@ struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
  * This array describes the order lists are fallen back to when
  * the free lists for the desirable migrate type are depleted
  */
+/**
+ * 当伙伴系统中指定的迁移列表 free_list[MIGRATE_TYPE] ⽆法满⾜内存分配需求时，
+ * 内核根据不同迁移类型定义了不同的 fallback 规则
+*/
 static int fallbacks[MIGRATE_TYPES][3] = {
 	[MIGRATE_UNMOVABLE]   = { MIGRATE_RECLAIMABLE, MIGRATE_MOVABLE,   MIGRATE_TYPES },
 	[MIGRATE_MOVABLE]     = { MIGRATE_RECLAIMABLE, MIGRATE_UNMOVABLE, MIGRATE_TYPES },
@@ -4993,9 +4997,11 @@ static inline bool prepare_alloc_pages(gfp_t gfp_mask, unsigned int order,
  */
 /**
  * 伙伴系统内存分配的核心函数
- * \param gfp_mask	: 内核中定义的⼀个⽤于规范物理内存分配⾏为的修饰符
- * \param order	: 分配阶，分配2的order次方的物理内存页
- * \return 指向内存分配后的第一个page的指针
+ * \param gfp_mask: 		内核中定义的⼀个⽤于规范物理内存分配⾏为的修饰符
+ * \param order: 			分配阶，分配2的order次方的物理内存页
+ * \param preferred_nid: 	表示优选的节点ID，如果这个参数非负，则优先尝试在这节点上进行内存分配
+ * \param nodemask:			位图，明内核可以在哪些节点上进行内存分配
+ * \return 					指向内存分配后的第一个page的指针
  * */ 
 struct page *
 __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
