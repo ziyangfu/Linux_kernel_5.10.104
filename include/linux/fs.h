@@ -448,6 +448,31 @@ int pagecache_write_end(struct file *, struct address_space *mapping,
  * @private_list: For use by the owner of the address_space.
  * @private_data: For use by the owner of the address_space.
  */
+/**
+ * 即页缓存 page_cache
+ * from ChatGPT:
+ * Page cache是Linux内存管理中一个非常重要的概念，它是Linux内核中用于缓存磁盘文件数据的一种方法。
+ * 当程序读取文件时，文件的内容会被缓存到内存中，这样下次再读取相同的文件时就可以直接从内存中获取，
+ * 而不必再次访问磁盘。这种缓存的内存区域就是page cache。
+ * 
+ * 以下是关于page cache的一些详细信息：
+ * 作用：
+ * page cache的主要作用是提高文件访问的速度。通过将磁盘上的文件数据缓存到内存中，可以加快文件的读取速度，
+ * 特别是对于频繁读取相同文件的情况。
+ * 可共享：
+ * page cache是可以被多个进程共享的，这意味着如果多个进程都需要访问同一个文件，
+ * 它们可以共享该文件的page cache，而不是每个进程都要单独读取文件内容。
+ * 页面置换：
+ * 如果系统内存不足时，内核会通过页面置换算法（比如LRU，最近最少使用算法）
+ * 来决定哪些page cache应该被释放。这通常是通过丢弃最少使用的页面来释放内存，以便为新的page cache腾出空间。
+ * Writeback机制：
+ * 当应用程序写入文件时，页缓存的内容首先被修改，而不是立即写回磁盘。这样可以降低磁盘IO的频率，
+ * 并提高性能。随后内核会通过writeback机制，将缓存中的修改内容异步地写回到磁盘。
+ * 
+ * Page cache在Linux系统中扮演了重要角色，它减少了对磁盘的频繁访问，提高了文件读取性能。
+ * 但是在一些内存有限的场景下，过多的page cache也可能会对性能产生影响，因为它占用了系统的内存资源
+ * */ 
+
 struct address_space {
 	struct inode		*host;
 	struct xarray		i_pages;

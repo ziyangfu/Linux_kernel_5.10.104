@@ -335,14 +335,24 @@ enum zone_watermarks {
 #define wmark_pages(z, i) (z->_watermark[i] + z->watermark_boost)
 
 struct per_cpu_pages {
+	/* pcplist ⾥的⻚⾯总数 */
 	int count;		/* number of pages in the list */
+	/* pcplist 里的高水位线，count 超过 high 时，内核会释放 batch 个页面到伙伴系统中 */
 	int high;		/* high watermark, emptying needed */
+	/* pcplist 里的页面来自于伙伴系统，batch 定义了每次从伙伴系统获取或者归还多少个页面 */
 	int batch;		/* chunk size for buddy add/remove */
 
 	/* Lists of pages, one per migrate type stored on the pcp-lists */
+	// CPU 高速缓存列表 pcplist，每个迁移类型对应一个 pcplist
 	struct list_head lists[MIGRATE_PCPTYPES];
 };
-
+/**
+ * 在 NUMA 内存架构下，每个物理内存区域都归属于⼀个特定的 NUMA 节点，NUMA 节点中包含了⼀个或者多个 CPU，
+ * NUMA 节点中的每个内存区域会关联到⼀个特定的 CPU上
+ * 
+ * 每个 CPU 都有⾃⼰独⽴的⾼速缓存，所以每个 CPU 对应⼀个 per_cpu_pageset 结构，
+ * ⽤于管理这个 CPU ⾼速缓存中的冷热⻚
+*/
 struct per_cpu_pageset {
 	struct per_cpu_pages pcp;
 #ifdef CONFIG_NUMA
@@ -471,6 +481,7 @@ struct zone {
 	int node;
 #endif
 	struct pglist_data	*zone_pgdat;
+	// 持有了系统中所有 CPU 的⾼速缓存⻚列表 per_cpu_pageset
 	struct per_cpu_pageset __percpu *pageset;
 
 #ifndef CONFIG_SPARSEMEM

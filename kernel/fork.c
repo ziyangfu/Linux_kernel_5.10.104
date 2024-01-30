@@ -857,6 +857,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 
 	if (node == NUMA_NO_NODE)
 		node = tsk_fork_get_node(orig);
+	// 从 task struct 对象专属的 slab 对象池中申请 task struct 对象
 	tsk = alloc_task_struct_node(node);
 	if (!tsk)
 		return NULL;
@@ -1340,7 +1341,7 @@ void exec_mm_release(struct task_struct *tsk, struct mm_struct *mm)
 }
 
 /**
- * dup_mm() - duplicates an existing mm structure
+ * dup_mm() - duplicates【复制】 an existing mm structure
  * @tsk: the task_struct with which the new mm will be associated.
  * @oldmm: the mm to duplicate.
  *
@@ -1354,7 +1355,7 @@ static struct mm_struct *dup_mm(struct task_struct *tsk,
 {
 	struct mm_struct *mm;
 	int err;
-
+	// 从 mm_struct 对象专属的 slab 对象池中申请 mm_struct 对象
 	mm = allocate_mm();
 	if (!mm)
 		goto fail_nomem;

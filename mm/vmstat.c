@@ -317,7 +317,7 @@ void set_pgdat_percpu_threshold(pg_data_t *pgdat,
 void __mod_zone_page_state(struct zone *zone, enum zone_stat_item item,
 			   long delta)
 {
-	struct per_cpu_pageset __percpu *pcp = zone->pageset;
+	struct  __percpu *pcp = zone->pageset;
 	s8 __percpu *p = pcp->vm_stat_diff + item;
 	long x;
 	long t;

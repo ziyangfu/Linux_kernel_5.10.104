@@ -68,6 +68,7 @@ struct mem_cgroup;
 #endif
 /** ����һ������ҳ��ʹ�ô�����union��λ�򣬽�Լ�ڴ� */
 struct page {
+	// 对于复合页来说，首页 page 中的 flags 会被设置为 PG_head 表示复合页的第一页
 	unsigned long flags;		/* Atomic flags, some possibly
 					 * updated asynchronously */
 	/*
@@ -149,14 +150,19 @@ struct page {
 		};
 		struct {	/* Tail pages of compound page�� ����? compound page ��� */
 			// ����?��β?ָ��??
+			// 其余尾页会通过该字段指向首页
 			unsigned long compound_head;	/* Bit zero is set */
 
 			/* First tail page only */
 			// ?���ͷŸ���?������������������??��
+			// 用于释放复合页的析构函数，保存在首页中
 			unsigned char compound_dtor;
 			// �ø���?�ж��ٸ� page ���
+			// 该复合页有多少个 page 组成，order 还是分配阶的概念，在首页中保存
+            // 本例中的 order = 2 表示由 4 个普通页组成
 			unsigned char compound_order;
 			// �ø���?�����ٸ�����ʹ?���ڴ�?����ӳ��ĸ��??�б���
+			// 该复合页被多少个进程使用，内存页反向映射的概念，首页中保存
 			atomic_t compound_mapcount;
 			unsigned int compound_nr; /* 1 << compound_order */
 		};

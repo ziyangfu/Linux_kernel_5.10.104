@@ -135,6 +135,8 @@ extern pmd_t *mm_find_pmd(struct mm_struct *mm, unsigned long address);
  */
 struct alloc_context {
 	// 运⾏进程 CPU 所在 NUMA 节点以及其所有备⽤ NUMA 节点中允许内存分配的内存区域
+	// 包含了当前 NUMA 节点在内的所有备⽤ NUMA 节点的所有物理内存区域，⽤于当前 NUMA
+	// 节点没有⾜够空闲内存的情况下进⾏跨 NUMA 节点分配
 	struct zonelist *zonelist;
 	// NUMA 节点状态掩码
 	nodemask_t *nodemask;
