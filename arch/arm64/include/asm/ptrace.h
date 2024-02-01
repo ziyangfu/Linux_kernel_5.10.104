@@ -170,6 +170,9 @@ static inline unsigned long pstate_to_compat_psr(const unsigned long pstate)
  * exception. Note that sizeof(struct pt_regs) has to be a multiple of 16 (for
  * stack alignment). struct user_pt_regs must form a prefix of struct pt_regs.
  */
+/**
+ * struct pt_regs 结构中存放的是缺⻚异常发⽣时，正在使⽤中的寄存器值的集合
+ * */
 struct pt_regs {
 	union {
 		struct user_pt_regs user_regs;

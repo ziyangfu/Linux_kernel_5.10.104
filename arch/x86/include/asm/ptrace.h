@@ -52,7 +52,9 @@ struct pt_regs {
 };
 
 #else /* __i386__ */
-
+/**
+ *  struct pt_regs 结构中存放的是缺⻚异常发⽣时，正在使⽤中的寄存器值的集合
+*/
 struct pt_regs {
 /*
  * C ABI says these regs are callee-preserved. They aren't saved on kernel entry

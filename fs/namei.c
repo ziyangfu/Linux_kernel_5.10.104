@@ -3375,7 +3375,10 @@ static struct file *path_openat(struct nameidata *nd,
 	}
 	return ERR_PTR(error);
 }
-
+/**
+ * 当我们使⽤ open 系统调⽤打开⼀个⽂件时，内核需要使⽤ struct file专属的 slab 
+ * 对象池分配 struct file 对象
+*/
 struct file *do_filp_open(int dfd, struct filename *pathname,
 		const struct open_flags *op)
 {
@@ -3384,9 +3387,9 @@ struct file *do_filp_open(int dfd, struct filename *pathname,
 	struct file *filp;
 
 	set_nameidata(&nd, dfd, pathname);
-	filp = path_openat(&nd, op, flags | LOOKUP_RCU);
+	filp = path_openat(&nd, op, flags | LOOKUP_RCU); // 分配 struct file 内核对象
 	if (unlikely(filp == ERR_PTR(-ECHILD)))
-		filp = path_openat(&nd, op, flags);
+		filp = path_openat(&nd, op, flags); 
 	if (unlikely(filp == ERR_PTR(-ESTALE)))
 		filp = path_openat(&nd, op, flags | LOOKUP_REVAL);
 	restore_nameidata();

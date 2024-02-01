@@ -561,11 +561,17 @@ struct kmem_cache_node {
 #endif
 
 #ifdef CONFIG_SLUB
+	// 该 node 节点中缓存的 slab 个数
 	unsigned long nr_partial;
+	// 该链表⽤于组织串联 node 节点中缓存的 slabs
+	// partial 链表中缓存的 slab 为部分空闲的（slab 中的对象部分被分配出去）
 	struct list_head partial;
-#ifdef CONFIG_SLUB_DEBUG
+#ifdef CONFIG_SLUB_DEBUG        // 开启 slab_debug 之后会⽤到的字段
+	// slab 的个数
 	atomic_long_t nr_slabs;
+	// 该 node 节点中缓存的所有 slab 中包含的对象总和
 	atomic_long_t total_objects;
+	// full 链表中包含的 slab 全部是已经被分配完毕的 full slab
 	struct list_head full;
 #endif
 #endif

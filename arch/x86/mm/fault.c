@@ -211,6 +211,20 @@ static inline pmd_t *vmalloc_sync_one(pgd_t *pgd, unsigned long address)
  *   which are not mapped in every page-table in the system, causing an
  *   unhandled page-fault when they are accessed.
  */
+/**
+ * \details
+ * 内核通过 vmalloc 内存分配接⼝在 vmalloc 映射区申请内存的时候，⾸先也会在 32T
+ * ⼤⼩的 vmalloc 映射区中划分出⼀段未被使⽤的虚拟内存区域出来，我们暂且叫这段虚拟
+ * 内存区域为 vmalloc 区，这⼀点和前⾯⽂章介绍的 mmap ⾮常相似，只不过 mmap ⼯作
+ * 在⽤户空间的⽂件与匿名映射区，vmalloc ⼯作在内核空间的 vmalloc 映射区
+ * 
+ * 内核空间中的 vmalloc 映射区就是由这样⼀段⼀段的 vmalloc 区组成的，每调⽤⼀次
+ * vmalloc 内存分配接⼝，就会在 vmalloc 映射区中映射出⼀段 vmalloc 虚拟内存区域，
+ * ⽽且每个 vmalloc 区之间隔着⼀个 4K ⼤⼩的 guard page（虚拟内存），⽤于防⽌内存
+ * 越界，将这些⾮连续的物理内存区域隔离起来
+ * 
+ * 和 mmap 不同的是，vmalloc 在分配完虚拟内存之后，会⻢上为这段虚拟内存分配物理内存
+*/
 static noinline int vmalloc_fault(unsigned long address)
 {
 	unsigned long pgd_paddr;
@@ -1144,7 +1158,7 @@ bool fault_in_kernel_space(unsigned long address)
 	 */
 	if (IS_ENABLED(CONFIG_X86_64) && is_vsyscall_vaddr(address))
 		return false;
-
+	// 在进程虚拟内存空间中，TASK_SIZE_MAX 以上的虚拟地址均属于内核空间
 	return address >= TASK_SIZE_MAX;
 }
 
@@ -1189,7 +1203,11 @@ do_kern_addr_fault(struct pt_regs *regs, unsigned long hw_error_code,
 	 * exist as the vmalloc mappings don't need to be synchronized
 	 * there.
 	 */
+	// 该缺页的内核地址 address 在内核页表中对应的 pte 不能使用保留位(X86_PF_RSVD = 0)
+    // 不能是用户态的缺页中断(X86_PF_USER = 0)
+    // 且不能是保护类型的缺页中断 (X86_PF_PROT = 0)
 	if (!(hw_error_code & (X86_PF_RSVD | X86_PF_USER | X86_PF_PROT))) {
+		// 处理 vmalloc 映射区里的缺页异常
 		if (vmalloc_fault(address) >= 0)
 			return;
 	}
@@ -1424,15 +1442,20 @@ static __always_inline void
 handle_page_fault(struct pt_regs *regs, unsigned long error_code,
 			      unsigned long address)
 {
-	trace_page_fault_entries(regs, error_code, address);
+	trace_page_fault_entries(regs, error_code, address);  // 这里可以跟踪缺页异常入口
 
 	if (unlikely(kmmio_fault(regs, address)))
 		return;
 
 	/* Was the fault on kernel-controlled part of the address space? */
+	// 这⾥判断引起缺⻚异常的虚拟内存地址 address 是属于内核空间的还是⽤户空间的
 	if (unlikely(fault_in_kernel_space(address))) {
+		// 如果缺页异常发生在内核空间，则由 vmalloc_fault 进行处理
+        // 这里使用 unlikely 的原因是，内核对内存的使用通常是高优先级的而且使用比较频繁，
+		// 所以内核空间一般很少发生缺页异常。
 		do_kern_addr_fault(regs, error_code, address);
 	} else {
+		// 缺页异常发生在用户态
 		do_user_addr_fault(regs, error_code, address);
 		/*
 		 * User address page fault handling might have reenabled

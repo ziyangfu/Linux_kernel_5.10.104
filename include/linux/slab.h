@@ -27,7 +27,7 @@
 #define SLAB_CONSISTENCY_CHECKS	((slab_flags_t __force)0x00000100U)
 /* DEBUG: Red zone objs in a cache */
 #define SLAB_RED_ZONE		((slab_flags_t __force)0x00000400U)
-/* DEBUG: Poison objects */
+/* DEBUG: Poison objects  SLAB毒化 */
 #define SLAB_POISON		((slab_flags_t __force)0x00000800U)
 /* Align objs on cache lines */
 #define SLAB_HWCACHE_ALIGN	((slab_flags_t __force)0x00002000U)

@@ -2833,8 +2833,12 @@ redo:
 	 * to check if it is matched or not.
 	 */
 	do {
+		// 获取执⾏当前进程的 cpu 中的 tid 字段
 		tid = this_cpu_read(s->cpu_slab->tid);
+		// 获取 cpu 本地缓存 cpu_slab
 		c = raw_cpu_ptr(s->cpu_slab);
+		// 如果两者的 tid 字段不⼀致，说明进程已经被调度到其他 cpu 上了
+		// 需要再次获取正确的 cpu 本地缓存
 	} while (IS_ENABLED(CONFIG_PREEMPTION) &&
 		 unlikely(tid != READ_ONCE(c->tid)));
 

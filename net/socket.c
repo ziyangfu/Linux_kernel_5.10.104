@@ -1711,7 +1711,8 @@ int __sys_accept4_file(struct file *file, unsigned file_flags,
 		goto out;
 
 	err = -ENFILE;
-	//  申请一个 struct socket 对象
+	// 为新进来的客户端连接申请 socket 对象以及与其关联的 inode 对象
+	// 从 struct socket 对象专属的 slab 对象池中申请 struct socket 对象
 	newsock = sock_alloc();
 	if (!newsock)
 		goto out;

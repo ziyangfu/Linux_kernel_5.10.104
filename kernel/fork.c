@@ -857,7 +857,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 
 	if (node == NUMA_NO_NODE)
 		node = tsk_fork_get_node(orig);
-	// ´Ó task struct ¶ÔÏó×¨ÊôµÄ slab ¶ÔÏó³ØÖĞÉêÇë task struct ¶ÔÏó
+	// ä» task struct å¯¹è±¡ä¸“å±çš„ slab å¯¹è±¡æ± ä¸­ç”³è¯· task struct å¯¹è±¡
 	tsk = alloc_task_struct_node(node);
 	if (!tsk)
 		return NULL;
@@ -1341,7 +1341,7 @@ void exec_mm_release(struct task_struct *tsk, struct mm_struct *mm)
 }
 
 /**
- * dup_mm() - duplicates¡¾¸´ÖÆ¡¿ an existing mm structure
+ * dup_mm() - duplicatesï¿½ï¿½ï¿½ï¿½ï¿½Æ¡ï¿½ an existing mm structure
  * @tsk: the task_struct with which the new mm will be associated.
  * @oldmm: the mm to duplicate.
  *
@@ -1355,7 +1355,7 @@ static struct mm_struct *dup_mm(struct task_struct *tsk,
 {
 	struct mm_struct *mm;
 	int err;
-	// ´Ó mm_struct ¶ÔÏó×¨ÊôµÄ slab ¶ÔÏó³ØÖĞÉêÇë mm_struct ¶ÔÏó
+	// ä» mm_struct å¯¹è±¡ä¸“å±çš„ slab å¯¹è±¡æ± ä¸­ç”³è¯· mm_struct å¯¹è±¡
 	mm = allocate_mm();
 	if (!mm)
 		goto fail_nomem;
@@ -1846,7 +1846,7 @@ static void copy_oom_score_adj(u64 clone_flags, struct task_struct *tsk)
  * This creates a new process as a copy of the old one,
  * but does not actually start it yet.
  *
- * It copies the registers, and all the appropriate
+ * It copies the registers, and all the appropriateã€é€‚å½“çš„ã€‘
  * parts of the process environment (as per the clone
  * flags). The actual kick-off is left to the caller.
  */

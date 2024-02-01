@@ -66,7 +66,12 @@ struct mem_cgroup;
 #else
 #define _struct_page_alignment
 #endif
-/** ����һ������ҳ��ʹ�ô�����union��λ�򣬽�Լ�ڴ� */
+
+/**
+ * slab:第一代小内存分配器
+ * slub：原理与slab一致，slab改进版
+ * slob：针对嵌入式系统的小内存分配器
+*/
 struct page {
 	// 对于复合页来说，首页 page 中的 flags 会被设置为 PG_head 表示复合页的第一页
 	unsigned long flags;		/* Atomic flags, some possibly
@@ -84,16 +89,9 @@ struct page {
 			 * pgdat->lru_lock.  Sometimes used as a generic list
 			 * by the page owner.
 			 */
-			// ?��ָ������? page �����������ĸ� lru ������
 			struct list_head lru;
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
-			// ��� page Ϊ?��?�Ļ�����λΪ0��ָ�� page ���ڵ� page cache
-			// ��� page Ϊ����?�Ļ�����λΪ1��ָ�����Ӧ�����ַ�ռ������ӳ���� anon_vma
-
-			// ÿ���ļ�ҳ����ҳ���ٻ���page cache����Ӧ�Ľṹ�����address_space
 			struct address_space *mapping;  
-			// ��� page Ϊ?��?�Ļ���index Ϊ page �� page cache �е�����
-			// ��� page Ϊ����?�Ļ�����?����?�ڶ�Ӧ���������ڴ����� VMA �е�ƫ��
 			pgoff_t index;		/* Our offset within mapping. */
 			/**
 			 * @private: Mapping-private opaque data.
@@ -101,7 +99,6 @@ struct page {
 			 * Used for swp_entry_t if PageSwapCache.
 			 * Indicates order in the buddy system if PageBuddy.
 			 */
-			// �ڲ�ͬ�����£�private ָ��ĳ�����Ϣ��ͬ
 			unsigned long private;
 		};
 		struct {	/* page_pool used by netstack */
@@ -113,55 +110,50 @@ struct page {
 		};
 		struct {	/* slab, slob and slub */
 			union {
-				// ?��ָ����ǰ page λ�� slab �е��ĸ��������������
-				struct list_head slab_list;
+				struct list_head slab_list; // slab 所在的管理链表
 				struct {	/* Partial pages */
-				// �� page λ�� slab �ṹ�е�ĳ������������ʱ��next ָ��?��ָ�������е���?�� page
-					struct page *next;
+					struct page *next;  // ⽤ next 指针在相应管理链表中串联起 slab
 #ifdef CONFIG_64BIT
-					// ��? slab ���ܹ�ӵ�е� page ����
+					// slab 所在管理链表中的包含的 slab 总数
 					int pages;	/* Nr of pages left */
-					// ��? slab ��ӵ�е��ض����͵Ķ������
-					int pobjects;	/* Approximate count */
+					// slab 所在管理链表中包含的对象总数
+					int pobjects;	/* Approximate【粗略估计的】 count */
 #else
 					short int pages;
 					short int pobjects;
 #endif
 				};
 			};
-			// ?��ָ��ǰ page ������ slab �����ṹ
+			// 指向 slab cache，slab cache 就是真正的对象池结构，⾥边管理了多个 slab
+			// 这多个 slab 被 slab cache 管理在了不同的链表上
 			struct kmem_cache *slab_cache; /* not slob */
 			/* Double-word boundary */
-			// ָ�� page �еĵ�?��δ�����ȥ�Ŀ��ж���
+			// 指向 slab 中第⼀个空闲对象
 			void *freelist;		/* first free object */
 			union {
-				// ָ�� page �еĵ�?������
 				void *s_mem;	/* slab: first object */
 				unsigned long counters;		/* SLUB */
-				struct {			/* SLUB */
-					// ��? slab ���Ѿ��������ȥ�Ķ������
+				struct {			/* SLUB */  // 总计4字节
+					// slab 中已经分配出去的独享
 					unsigned inuse:16;
-					// slab �����еĶ������
+					// slab 中包含的对象总数
 					unsigned objects:15;
-					// ��ǰ�ڴ�? page �� slab ������ CPU ���ػ����б��У�frozen = 1������ frozen
+					// 该 slab 是否在对应 slab cache 的本地 CPU 缓存中
+					// frozen = 1 表⽰缓存再本地 cpu 缓存中
 					unsigned frozen:1;
 				};
 			};
 		};
-		struct {	/* Tail pages of compound page�� ����? compound page ��� */
-			// ����?��β?ָ��??
+		struct {	/* Tail pages of compound page */
 			// 其余尾页会通过该字段指向首页
 			unsigned long compound_head;	/* Bit zero is set */
 
 			/* First tail page only */
-			// ?���ͷŸ���?������������������??��
 			// 用于释放复合页的析构函数，保存在首页中
 			unsigned char compound_dtor;
-			// �ø���?�ж��ٸ� page ���
 			// 该复合页有多少个 page 组成，order 还是分配阶的概念，在首页中保存
             // 本例中的 order = 2 表示由 4 个普通页组成
 			unsigned char compound_order;
-			// �ø���?�����ٸ�����ʹ?���ڴ�?����ӳ��ĸ��??�б���
 			// 该复合页被多少个进程使用，内存页反向映射的概念，首页中保存
 			atomic_t compound_mapcount;
 			unsigned int compound_nr; /* 1 << compound_order */

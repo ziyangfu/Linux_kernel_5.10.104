@@ -447,7 +447,9 @@ static bool is_write_abort(unsigned int esr)
 {
 	return (esr & ESR_ELx_WNR) && !(esr & ESR_ELx_CM);
 }
-
+/**
+ * \brief aarch64架构下的缺页异常处理入口函数
+*/
 static int __kprobes do_page_fault(unsigned long addr, unsigned int esr,
 				   struct pt_regs *regs)
 {

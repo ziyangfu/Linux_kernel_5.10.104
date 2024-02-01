@@ -1788,15 +1788,22 @@ repeat:
  *
  * Return: The found page or %NULL otherwise.
  */
+
+/**
+ * 当我们向⻚⾼速缓存 page cache 查找对应的⽂件缓存⻚时，内核需要使⽤ struct page 专属的 
+ * slab 对象池分配 struct page 对象
+*/
 struct page *pagecache_get_page(struct address_space *mapping, pgoff_t index,
 		int fgp_flags, gfp_t gfp_mask)
 {
 	struct page *page;
 
 repeat:
+	// 在 radix_tree（page cache）中根据缓存⻚ offset 查找缓存⻚
 	page = find_get_entry(mapping, index);
 	if (xa_is_value(page))
 		page = NULL;
+	// 缓存⻚不存在的话，跳转到 no_page 处理逻辑
 	if (!page)
 		goto no_page;
 
@@ -1836,7 +1843,7 @@ no_page:
 			gfp_mask |= __GFP_WRITE;
 		if (fgp_flags & FGP_NOFS)
 			gfp_mask &= ~__GFP_FS;
-
+		// 从 page 对象专属的 slab 对象池中申请 page 对象
 		page = __page_cache_alloc(gfp_mask);
 		if (!page)
 			return NULL;
@@ -1847,7 +1854,7 @@ no_page:
 		/* Init accessed so avoid atomic mark_page_accessed later */
 		if (fgp_flags & FGP_ACCESSED)
 			__SetPageReferenced(page);
-
+		// 将新分配的内存⻚加⼊到⻚⾼速缓存 page cache 中
 		err = add_to_page_cache_lru(page, mapping, index, gfp_mask);
 		if (unlikely(err)) {
 			put_page(page);
