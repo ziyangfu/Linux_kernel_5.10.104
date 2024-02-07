@@ -1843,14 +1843,23 @@ static void bpf_prog_select_func(struct bpf_prog *fp)
  * Try to JIT eBPF program, if JIT is not available, use interpreter.
  * The BPF program will be executed via BPF_PROG_RUN() macro.
  */
+/**
+ *    bpf_prog_select_runtime - 选择BPF程序的运行时机
+ *    @fp: 内部填充了BPF程序的bpf_prog对象 
+ *    @err: 执行错误代码
+ *
+ * 尝试JIT eBPF程序, 如果JIT不可用就用解释器 
+ * BPF程序会通过BPF_PROG_RUN()宏执行
+ */
 struct bpf_prog *bpf_prog_select_runtime(struct bpf_prog *fp, int *err)
 {
 	/* In case of BPF to BPF calls, verifier did all the prep
 	 * work with regards to JITing, etc.
 	 */
+	// 在BPF调用BPF的情况下, 验证器已经完成了与JIT相关的所有准备工作, 直接结束
 	if (fp->bpf_func)
 		goto finalize;
-
+	//根据栈的深度从interpreters中选择一个作为fp->bpf_func
 	bpf_prog_select_func(fp);
 
 	/* eBPF JITs can rewrite the program in case constant
@@ -1859,12 +1868,15 @@ struct bpf_prog *bpf_prog_select_runtime(struct bpf_prog *fp, int *err)
 	 * valid program, which in this case would simply not
 	 * be JITed, but falls back to the interpreter.
 	 */
+	//  在开启常数致盲得到情况下eBPF JIT会重写程序. 
+    //  然而为防止致盲时发生错误, bpf_int_jit_compile()必须返回一个有效的程序,
+	//  此时就不会被JIT, 而转交给解释器
 	if (!bpf_prog_is_dev_bound(fp->aux)) {
 		*err = bpf_prog_alloc_jited_linfo(fp);
 		if (*err)
 			return fp;
 
-		fp = bpf_int_jit_compile(fp);
+		fp = bpf_int_jit_compile(fp); //进行JIT编译
 		if (!fp->jited) {
 			bpf_prog_free_jited_linfo(fp);
 #ifdef CONFIG_BPF_JIT_ALWAYS_ON
@@ -1888,6 +1900,9 @@ finalize:
 	 * with JITed or non JITed program concatenations and not
 	 * all eBPF JITs might immediately support all features.
 	 */
+	// 尾调用兼容性检查只能在最后阶段进行。
+    // 因为我们要确定, 如果我们处理JITed或者非JITed程序的链接, 
+	// 并且不是所有的eBPF JIT都能立刻支持所有的特性
 	*err = bpf_check_tail_call(fp);
 
 	return fp;

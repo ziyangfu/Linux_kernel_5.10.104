@@ -1594,26 +1594,34 @@ unsigned long ksys_mmap_pgoff(unsigned long addr, unsigned long len,
 {
 	struct file *file = NULL;
 	unsigned long retval;
-
+	// 预处理⽂件映射
 	if (!(flags & MAP_ANONYMOUS)) {
+		// 根据 fd 获取映射⽂件的 struct file 结构
 		audit_mmap_fd(fd, flags);
 		file = fget(fd);
 		if (!file)
-			return -EBADF;
+			return -EBADF;//如果是匿名映射的话必须要指定MAP_ANONYMOUS否则这⾥就返回错误了
+		// 映射⽂件是否是 hugetlbfs 中的⽂件，hugetlbfs 中的⽂件默认由⼤⻚⽀持
 		if (is_file_hugepages(file)) {
+			// mmap 进⾏⽂件⼤⻚映射，len 需要和⼤⻚尺⼨对⻬
 			len = ALIGN(len, huge_page_size(hstate_file(file)));
-		} else if (unlikely(flags & MAP_HUGETLB)) {
+		} 
+		// 这⾥可以看出如果想要使⽤ mmap 对⽂件进⾏⼤⻚映射，那么映射的⽂件必须是 hugetlbfs 中的
+		// mmap ⽂件⼤⻚映射并不需要指定 MAP_HUGETLB，并且 mmap 不能对普通⽂件进⾏⼤⻚映射
+		else if (unlikely(flags & MAP_HUGETLB)) {
 			retval = -EINVAL;
 			goto out_fput;
 		}
 	} else if (flags & MAP_HUGETLB) {
+		// 从这⾥我们可以看出 MAP_HUGETLB 只能⽀持 MAP_ANONYMOUS 匿名映射的⽅式使⽤ HugePage
 		struct user_struct *user = NULL;
+		// 内核中的⼤⻚池（预先创建）
 		struct hstate *hs;
-
+		// 选取指定⼤⻚尺⼨的⼤⻚池（内核中存在不同尺⼨的⼤⻚池）
 		hs = hstate_sizelog((flags >> MAP_HUGE_SHIFT) & MAP_HUGE_MASK);
 		if (!hs)
 			return -EINVAL;
-
+		// 映射⻓度 len 必须与⼤⻚尺⼨对⻬
 		len = ALIGN(len, huge_page_size(hs));
 		/*
 		 * VM_NORESERVE is used because the reservations will be
@@ -1621,6 +1629,7 @@ unsigned long ksys_mmap_pgoff(unsigned long addr, unsigned long len,
 		 * A dummy user value is used because we are not locking
 		 * memory so no accounting is necessary
 		 */
+		// 在 hugetlbfs 中创建 anon_hugepage ⽂件，并预留⼤⻚内存（禁⽌其他进程申请）
 		file = hugetlb_file_setup(HUGETLB_ANON_FILE, len,
 				VM_NORESERVE,
 				&user, HUGETLB_ANONHUGE_INODE,
@@ -1630,11 +1639,11 @@ unsigned long ksys_mmap_pgoff(unsigned long addr, unsigned long len,
 	}
 
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
-
+	// 开始内存映射
 	retval = vm_mmap_pgoff(file, addr, len, prot, flags, pgoff);
 out_fput:
 	if (file)
-		fput(file);
+		fput(file);  // file 引⽤计数减 1
 	return retval;
 }
 

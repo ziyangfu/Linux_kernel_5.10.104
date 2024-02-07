@@ -2116,7 +2116,7 @@ static bool is_perfmon_prog_type(enum bpf_prog_type prog_type)
 
 /* last field in 'union bpf_attr' used by this command */
 #define	BPF_PROG_LOAD_LAST_FIELD attach_prog_fd
-
+/** 加载bpf程序 */
 static int bpf_prog_load(union bpf_attr *attr, union bpf_attr __user *uattr)
 {
 	enum bpf_prog_type type = attr->prog_type;
@@ -2169,11 +2169,12 @@ static int bpf_prog_load(union bpf_attr *attr, union bpf_attr __user *uattr)
 		return -EINVAL;
 
 	/* plain bpf_prog allocation */
+	/* 分配一个bpf_prog对象, 所需大小 = bpf_prog对象大小 + BPF程序大小 */
 	prog = bpf_prog_alloc(bpf_prog_size(attr->insn_cnt), GFP_USER);
 	if (!prog)
 		return -ENOMEM;
-
-	prog->expected_attach_type = attr->expected_attach_type;
+	//初始化bpf_prog对象
+	prog->expected_attach_type = attr->expected_attach_type; //程序期望附着的事件的类型
 	prog->aux->attach_btf_id = attr->attach_btf_id;
 	if (attr->attach_prog_fd) {
 		struct bpf_prog *dst_prog;
@@ -2200,14 +2201,15 @@ static int bpf_prog_load(union bpf_attr *attr, union bpf_attr __user *uattr)
 	prog->len = attr->insn_cnt;
 
 	err = -EFAULT;
+	//从用户空间复制BPF程序到内核空间
 	if (copy_from_user(prog->insns, u64_to_user_ptr(attr->insns),
 			   bpf_prog_insn_size(prog)) != 0)
 		goto free_prog;
 
 	prog->orig_prog = NULL;
-	prog->jited = 0;
+	prog->jited = 0;   //还未进行jit
 
-	atomic64_set(&prog->aux->refcnt, 1);
+	atomic64_set(&prog->aux->refcnt, 1);    //设置引用计数为1
 	prog->gpl_compatible = is_gpl ? 1 : 0;
 
 	if (bpf_prog_is_dev_bound(prog->aux)) {
@@ -2228,14 +2230,15 @@ static int bpf_prog_load(union bpf_attr *attr, union bpf_attr __user *uattr)
 		goto free_prog;
 
 	/* run eBPF verifier */
+	/* 进行BPF验证 */
 	err = bpf_check(&prog, attr, uattr);
 	if (err < 0)
 		goto free_used_maps;
-
+	//JIT编译
 	prog = bpf_prog_select_runtime(prog, &err);
 	if (err < 0)
 		goto free_used_maps;
-
+	//为BPF程序分配ID
 	err = bpf_prog_alloc_id(prog);
 	if (err)
 		goto free_used_maps;
@@ -2257,8 +2260,8 @@ static int bpf_prog_load(union bpf_attr *attr, union bpf_attr __user *uattr)
 	bpf_prog_kallsyms_add(prog);
 	perf_event_bpf_event(prog, PERF_BPF_EVENT_PROG_LOAD, 0);
 	bpf_audit_prog(prog, BPF_AUDIT_LOAD);
-
-	err = bpf_prog_new_fd(prog);
+	//为BPF程序分配一个fd, 现在开始就可以使用了
+	err = bpf_prog_new_fd(prog); 
 	if (err < 0)
 		bpf_prog_put(prog);
 	return err;

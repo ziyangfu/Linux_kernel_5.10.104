@@ -85,7 +85,7 @@ static int __init control_va_addr_alignment(char *str)
 	return 1;
 }
 __setup("align_va_addr", control_va_addr_alignment);
-
+// mmap系统调用
 SYSCALL_DEFINE6(mmap, unsigned long, addr, unsigned long, len,
 		unsigned long, prot, unsigned long, flags,
 		unsigned long, fd, unsigned long, off)

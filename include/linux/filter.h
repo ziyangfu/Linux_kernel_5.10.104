@@ -538,13 +538,13 @@ struct bpf_binary_header {
 };
 
 struct bpf_prog {
-	u16			pages;		/* Number of allocated pages */
-	u16			jited:1,	/* Is our filter JIT'ed? */
+	u16			pages;		/* Number of allocated pages */ /* 占据了多少页 */
+	u16			jited:1,	/* Is our filter JIT'ed? */ /* 是否被JIT翻译过 */
 				jit_requested:1,/* archs need to JIT the prog */
 				gpl_compatible:1, /* Is filter GPL compatible? */
 				cb_access:1,	/* Is control block accessed? */
-				dst_needed:1,	/* Do we need dst entry? */
-				blinded:1,	/* Was blinded */
+				dst_needed:1,	/* Do we need dst entry? 是否需要dst条目 */ 
+				blinded:1,	/* Was blinded 是否进行过常数致盲 */
 				is_func:1,	/* program is a bpf function */
 				kprobe_override:1, /* Do we override a kprobe? */
 				has_callchain_buf:1, /* callchain buffer allocated? */
