@@ -3342,7 +3342,7 @@ static struct file *path_openat(struct nameidata *nd,
 {
 	struct file *file;
 	int error;
-
+	// 从 struct file 对象专属的 slab 对象池中申请 struct file 对象
 	file = alloc_empty_file(op->open_flag, current_cred());
 	if (IS_ERR(file))
 		return file;

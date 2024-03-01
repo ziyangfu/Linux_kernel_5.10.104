@@ -820,6 +820,15 @@ static inline void set_buddy_order(struct page *page, unsigned int order)
  */
 /**
  * \brief 判断两个内存块是否为伙伴关系
+ * \details
+ *  1. 伙伴系统所管理的内存⻚必须是可⽤的，不能处于内存空洞中，通过 page_is_guard 函
+		数判断。
+	2. 伙伴必须是空闲的内存块，这些内存块必须存在于伙伴系统中，组成内存块的内存⻚page 结构中
+		的 flag 标志设置了 PG_buddy 标记。通过 PageBuddy 判断这些内存⻚是否在伙伴系统中。
+	3. 两个互为伙伴的内存块必须拥有相同的分配阶 order，也就是它们之间的⼤⼩尺⼨必须
+		⼀致。通过 page_order(buddy) == order 判断
+	4. 互为伙伴关系的内存块必须处于相同的物理内存区域 zone 中。通过 page_zone_id(p
+		age) == page_zone_id(buddy) 判断
 */
 static inline bool page_is_buddy(struct page *page, struct page *buddy,
 							unsigned int order)
@@ -998,10 +1007,10 @@ static inline void __free_one_page(struct page *page,
 		int migratetype, fpi_t fpi_flags)
 {
 	struct capture_control *capc = task_capc(zone);
-	unsigned long buddy_pfn;
+	unsigned long buddy_pfn;   	// 释放内存块与其伙伴内存块合并之后新内存块的 pfn
 	unsigned long combined_pfn;
-	unsigned int max_order;
-	struct page *buddy;
+	unsigned int max_order;     // 伙伴系统中的最⼤分配阶
+	struct page *buddy;  		// 伙伴内存块的⾸⻚ page 指针
 	bool to_tail;
 
 	max_order = min_t(unsigned int, MAX_ORDER - 1, pageblock_order);
@@ -1015,7 +1024,7 @@ static inline void __free_one_page(struct page *page,
 
 	VM_BUG_ON_PAGE(pfn & ((1 << order) - 1), page);
 	VM_BUG_ON_PAGE(bad_range(zone, page), page);
-
+	// 从释放内存块的当前分配阶开始⼀直向⾼阶合并内存块，直到不能合并为⽌
 continue_merging:
 	while (order < max_order) {
 		if (compaction_capture(capc, page, order, migratetype)) {
@@ -2380,7 +2389,7 @@ static int fallbacks[MIGRATE_TYPES][3] = {
 	[MIGRATE_UNMOVABLE]   = { MIGRATE_RECLAIMABLE, MIGRATE_MOVABLE,   MIGRATE_TYPES },
 	[MIGRATE_MOVABLE]     = { MIGRATE_RECLAIMABLE, MIGRATE_UNMOVABLE, MIGRATE_TYPES },
 	[MIGRATE_RECLAIMABLE] = { MIGRATE_UNMOVABLE,   MIGRATE_MOVABLE,   MIGRATE_TYPES },
-#ifdef CONFIG_CMA
+#ifdef CONFIG_CMA   // CMA：连续内存分配 contiguous memory allocation
 	[MIGRATE_CMA]         = { MIGRATE_TYPES }, /* Never used */
 #endif
 #ifdef CONFIG_MEMORY_ISOLATION
@@ -2388,7 +2397,7 @@ static int fallbacks[MIGRATE_TYPES][3] = {
 #endif
 };
 
-#ifdef CONFIG_CMA
+#ifdef CONFIG_CMA   
 static __always_inline struct page *__rmqueue_cma_fallback(struct zone *zone,
 					unsigned int order)
 {
@@ -2650,20 +2659,23 @@ int find_suitable_fallback(struct free_area *area, unsigned int order,
 			int migratetype, bool only_stealable, bool *can_steal)
 {
 	int i;
+	// 最终选取的 fallback ⻚⾯迁移类型
 	int fallback_mt;
-
+	// 当前 free_area[order] 中以⽆空闲⻚⾯，则返回失败
 	if (area->nr_free == 0)
 		return -1;
 
 	*can_steal = false;
+	// 按照 fallback 优先级，循环在 free_list[fallback] 中查询是否有空闲内存块
 	for (i = 0;; i++) {
+		// 按照优先级获取 fallback ⻚⾯迁移类型
 		fallback_mt = fallbacks[migratetype][i];
 		if (fallback_mt == MIGRATE_TYPES)
 			break;
-
+		// 如果当前 free_list[fallback] 为空则继续循环降级查找
 		if (free_area_empty(area, fallback_mt))
 			continue;
-
+		// 判断是否可以从 free_list[fallback] 窃取⻚⾯到指定 free_list[migratetype] 中
 		if (can_steal_fallback(order, migratetype))
 			*can_steal = true;
 
@@ -3935,7 +3947,7 @@ static inline unsigned int current_alloc_flags(gfp_t gfp_mask,
  * 
  * 基本原理：
  * 遍历 struct alloc_context ⾥的zonelist，挨个检查各个 NUMA 节点中的物理内存区域是否有⾜够的空闲内存
- * 可以满⾜本次的内存分配要求，如果可以满⾜则进⼊该物理内存区域的伙伴系统中完整真正的内存分配动作
+ * 可以满⾜本次的内存分配要求，如果可以满⾜则进⼊该物理内存区域的伙伴系统中完成真正的内存分配动作
  * detail：
  * 通过 for_next_zone_zonelist_nodemask 来遍历当前 NUMA 节点以及备用节点的所有内存区域（zonelist），
  * 然后逐个通过 zone_watermark_fast 检查这些内存区域 zone 中的剩余空闲内存容量是否在指定的水位线 mark 之上。
@@ -4089,6 +4101,10 @@ retry:
 try_this_zone:
 		// 这里就是伙伴系统的入口，rmqueue 函数中封装的就是伙伴系统的核心逻辑
 		// 进入伙伴系统分配内存
+
+		// 现在内核通过前边介绍的 get_page_from_freelist 函数，循环遍历 zonelist 终于找到了
+		// 符合内存分配条件的物理内存区域 zone
+		// 接下来就会通过 rmqueue 函数进⼊到该物理内存区域 zone 对应的伙伴系统中实际分配物理内存
 		page = rmqueue(ac->preferred_zoneref->zone, zone, order,
 				gfp_mask, alloc_flags, ac->migratetype);
 		if (page) {
@@ -4112,7 +4128,7 @@ try_this_zone:
 			}
 #endif
 		}
-	}
+	}  // for_next_zone_zonelist_nodemask 循环遍历的结束
 
 	/*
 	 * It's possible on a UMA machine to get through all zones that are
@@ -4284,6 +4300,7 @@ out:
 
 #ifdef CONFIG_COMPACTION
 /* Try memory compaction for high-order allocations before reclaim */
+// 整理出更多内存，然后尝试分配内存
 static struct page *
 __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 		unsigned int alloc_flags, const struct alloc_context *ac,
@@ -4871,6 +4888,7 @@ retry_cpuset:
 	 * The adjusted alloc_flags might result in immediate success, so try
 	 * that first
 	 */
+	// 根据新的内存分配策略首次尝试内存分配
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
 	if (page)
 		goto got_pg;

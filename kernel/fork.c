@@ -847,7 +847,8 @@ void set_task_stack_end_magic(struct task_struct *tsk)
 	stackend = end_of_stack(tsk);
 	*stackend = STACK_END_MAGIC;	/* for overflow detection */
 }
-
+// 当我们使⽤ fork() 系统调⽤创建进程的时候，内核需要使⽤ task_struct 专属的 slab 对象池分配
+// task_struct 对象
 static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 {
 	struct task_struct *tsk;
@@ -1341,7 +1342,7 @@ void exec_mm_release(struct task_struct *tsk, struct mm_struct *mm)
 }
 
 /**
- * dup_mm() - duplicates�����ơ� an existing mm structure
+ * dup_mm() - duplicates【复制品】 an existing mm structure
  * @tsk: the task_struct with which the new mm will be associated.
  * @oldmm: the mm to duplicate.
  *
@@ -1350,6 +1351,7 @@ void exec_mm_release(struct task_struct *tsk, struct mm_struct *mm)
  *
  * Return: the duplicated mm or NULL on failure.
  */
+// 为进程创建虚拟内存空间的时候，内核需要使⽤ mm_struct 专属的 slab 对象池分配 mm_struct 对象
 static struct mm_struct *dup_mm(struct task_struct *tsk,
 				struct mm_struct *oldmm)
 {
