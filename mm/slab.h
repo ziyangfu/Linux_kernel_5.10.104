@@ -76,8 +76,8 @@ extern struct kmem_cache *kmem_cache;
 
 /* A table of kmalloc cache names and sizes */
 extern const struct kmalloc_info_struct {
-	const char *name[NR_KMALLOC_TYPES];
-	unsigned int size;
+	const char *name[NR_KMALLOC_TYPES];  // slab cache的名字
+	unsigned int size;  // slab cache 提供的内存块⼤⼩，单位为字节
 } kmalloc_info[];
 
 #ifndef CONFIG_SLOB

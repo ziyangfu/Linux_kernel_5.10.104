@@ -401,6 +401,7 @@ EXPORT_SYMBOL(kmem_cache_create_usercopy);
  *
  * Return: a pointer to the cache on success, NULL on failure.
  */
+// slab cache的接口函数
 struct kmem_cache *
 kmem_cache_create(const char *name, unsigned int size, unsigned int align,
 		slab_flags_t flags, void (*ctor)(void *))
@@ -593,6 +594,7 @@ EXPORT_SYMBOL(kmalloc_caches);
  * of two cache sizes there. The size of larger slabs can be determined using
  * fls.
  */
+// 内核通过定义⼀个 size_index[24] 数组来存放申请内存块⼤⼩在 192 字节以下的kmalloc 内存池选取规则
 static u8 size_index[24] __ro_after_init = {
 	3,	/* 8 */
 	4,	/* 16 */
@@ -629,21 +631,25 @@ static inline unsigned int size_index_elem(unsigned int bytes)
  * Find the kmem_cache structure that serves a given size of
  * allocation
  */
+// 从 kmalloc_caches 中选取最佳尺⼨的 slab cache
 struct kmem_cache *kmalloc_slab(size_t size, gfp_t flags)
 {
 	unsigned int index;
-
+	// 如果申请的内存块 size 在 192 字节以下，则通过 size_index 数组定位 kmalloc_caches 缓存索引
+	// 从⽽获取到最佳合适尺⼨的内存池 slab cache
 	if (size <= 192) {
 		if (!size)
 			return ZERO_SIZE_PTR;
-
+		// 根据申请的内存块 size，定义 size_index 数组索引，从⽽获取 kmalloc_caches 缓存的 index
 		index = size_index[size_index_elem(size)];
 	} else {
+		// 如果申请的内存块 size 超过 192 字节，则通过 fls 定位 kmalloc_caches 缓存的 index
+		// fls 可以获取参数的最⾼有效 bit 的位数，⽐如 fls(0)=0，fls(1)=1，fls(4) = 3
 		if (WARN_ON_ONCE(size > KMALLOC_MAX_CACHE_SIZE))
 			return NULL;
 		index = fls(size - 1);
 	}
-
+	// 根据 kmalloc_type 以及 index 获取最佳尺⼨的内存池 slab cache
 	return kmalloc_caches[kmalloc_type(flags)][index];
 }
 
@@ -745,7 +751,7 @@ void __init setup_kmalloc_cache_index_table(void)
 			size_index[size_index_elem(i)] = 8;
 	}
 }
-
+// 负责创建具体尺⼨的 slab cache
 static void __init
 new_kmalloc_cache(int idx, enum kmalloc_cache_type type, slab_flags_t flags)
 {
@@ -767,20 +773,26 @@ void __init create_kmalloc_caches(slab_flags_t flags)
 {
 	int i;
 	enum kmalloc_cache_type type;
-
+	// 初始化⼆维数组 kmalloc_caches
 	for (type = KMALLOC_NORMAL; type <= KMALLOC_RECLAIM; type++) {
+		// 这⾥会从 8B 尺⼨的内存池开始创建，⼀直到创建完 8K 尺⼨的内存池
 		for (i = KMALLOC_SHIFT_LOW; i <= KMALLOC_SHIFT_HIGH; i++) {
 			if (!kmalloc_caches[type][i])
-				new_kmalloc_cache(i, type, flags);
+				new_kmalloc_cache(i, type, flags);// 创建对应尺⼨的kmalloc内存池,其中内存块⼤⼩2^i字节
 
 			/*
 			 * Caches that are not of the two-to-the-power-of size.
 			 * These have to be created immediately after the
 			 * earlier power of two caches
 			 */
+			// 创建 kmalloc-96 内存池管理 96B 尺⼨的内存块
+			// 专门特意创建⼀个 96字节尺⼨的内存池的⽬的是为了，应对 64B 到 128B 之间的内存分配需求
 			if (KMALLOC_MIN_SIZE <= 32 && i == 6 &&
 					!kmalloc_caches[type][1])
 				new_kmalloc_cache(1, type, flags);
+			// 创建 kmalloc-192 内存池管理 192B 尺⼨的内存块
+			// 这⾥专门创建⼀个 192字节尺⼨的内存池.是为了分配 128B 到 192B 之间的内存分配需求
+			// 要不然超过 128B 直接分配⼀个 256B 的内存块太浪费了
 			if (KMALLOC_MIN_SIZE <= 64 && i == 7 &&
 					!kmalloc_caches[type][2])
 				new_kmalloc_cache(2, type, flags);
@@ -788,9 +800,11 @@ void __init create_kmalloc_caches(slab_flags_t flags)
 	}
 
 	/* Kmalloc array is now usable */
+	// 当 kmalloc 体系全部创建完毕之后，slab 体系的状态就变为 up 状态了
 	slab_state = UP;
 
 #ifdef CONFIG_ZONE_DMA
+	// 如果配置了 DMA 内存区域，则需要为该区域也创建对应尺⼨的内存池
 	for (i = 0; i <= KMALLOC_SHIFT_HIGH; i++) {
 		struct kmem_cache *s = kmalloc_caches[KMALLOC_NORMAL][i];
 

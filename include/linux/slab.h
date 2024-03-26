@@ -253,10 +253,12 @@ static inline void __check_heap_object(const void *ptr, unsigned long n,
  * SLUB directly allocates requests fitting in to an order-1 page
  * (PAGE_SIZE*2).  Larger requests are passed to the page allocator.
  */
-#define KMALLOC_SHIFT_HIGH	(PAGE_SHIFT + 1)
+// slub 最⼤⽀持分配 2⻚ ⼤⼩的对象，对应的 kmalloc 内存池中内存块尺⼨最⼤就是 2⻚
+// 超过 2⻚ ⼤⼩的内存块直接向伙伴系统申请
+#define KMALLOC_SHIFT_HIGH	(PAGE_SHIFT + 1)   // 12 + 1,  kmalloc ⽀持的最⼤内存块尺⼨为 8K
 #define KMALLOC_SHIFT_MAX	(MAX_ORDER + PAGE_SHIFT - 1)
 #ifndef KMALLOC_SHIFT_LOW
-#define KMALLOC_SHIFT_LOW	3
+#define KMALLOC_SHIFT_LOW	3   // kmalloc ⽀持的最⼩内存块尺⼨为 8 字节⼤⼩
 #endif
 #endif
 
@@ -302,11 +304,12 @@ static inline void __check_heap_object(const void *ptr, unsigned long n,
  * Whenever changing this, take care of that kmalloc_type() and
  * create_kmalloc_caches() still work as intended.
  */
+// kmalloc 内存池中的内存来源类型定义
 enum kmalloc_cache_type {
-	KMALLOC_NORMAL = 0,
-	KMALLOC_RECLAIM,
+	KMALLOC_NORMAL = 0,   // 规定 kmalloc 内存池的内存需要在 NORMAL 直接映射区分配
+	KMALLOC_RECLAIM,	  // 规定 kmalloc 内存池中的内存是可以回收的，⽐如⽂件⻚缓存，匿名⻚
 #ifdef CONFIG_ZONE_DMA
-	KMALLOC_DMA,
+	KMALLOC_DMA,	      // kmalloc 内存池中的内存⽤于 DMA，需要在 DMA 区域分配
 #endif
 	NR_KMALLOC_TYPES
 };
@@ -314,7 +317,14 @@ enum kmalloc_cache_type {
 #ifndef CONFIG_SLOB
 extern struct kmem_cache *
 kmalloc_caches[NR_KMALLOC_TYPES][KMALLOC_SHIFT_HIGH + 1];
-
+/**
+ *  1. 如果 gfp_t flags 没有特殊指定，那么在默认情况下，内核向 kmalloc 内存池申请的内
+		存均来⾃于 ZONE_NORMAL 物理内存区域。
+	2. 如果 gfp_t flags 明确指定了 __GFP_DMA，则内核向 kmalloc 内存池申请的内存均
+		来⾃于 ZONE_DMA 物理内存区域。
+	3. 如果 gfp_t flags 明确指定了 __GFP_RECLAIMABLE，则内核向 kmalloc 内存池申
+		请的内存均是可以被回收的
+*/
 static __always_inline enum kmalloc_cache_type kmalloc_type(gfp_t flags)
 {
 #ifdef CONFIG_ZONE_DMA
@@ -322,6 +332,8 @@ static __always_inline enum kmalloc_cache_type kmalloc_type(gfp_t flags)
 	 * The most common case is KMALLOC_NORMAL, so test for it
 	 * with a single branch for both flags.
 	 */
+	// 通常情况下 kmalloc 内存池中的内存都来源于 NORMAL 直接映射区
+	// 如果没有特殊设定，则从 NORMAL 直接映射区⾥分配
 	if (likely((flags & (__GFP_DMA | __GFP_RECLAIMABLE)) == 0))
 		return KMALLOC_NORMAL;
 
@@ -329,8 +341,11 @@ static __always_inline enum kmalloc_cache_type kmalloc_type(gfp_t flags)
 	 * At least one of the flags has to be set. If both are, __GFP_DMA
 	 * is more important.
 	 */
+	// DMA 区域中的内存是⾮常宝贵的，如果明确指定需要从 DMA 区域中分配内存
+	// 则选取 DMA 区域中的 kmalloc 内存池
 	return flags & __GFP_DMA ? KMALLOC_DMA : KMALLOC_RECLAIM;
 #else
+	// 明确指定了从 RECLAIMABLE 区域中获取内存，则选取 RECLAIMABLE 区域中 kmalloc 内存池
 	return flags & __GFP_RECLAIMABLE ? KMALLOC_RECLAIM : KMALLOC_NORMAL;
 #endif
 }

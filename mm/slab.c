@@ -3645,12 +3645,16 @@ static __always_inline void *__do_kmalloc(size_t size, gfp_t flags,
 {
 	struct kmem_cache *cachep;
 	void *ret;
-
+	// KMALLOC_MAX_CACHE_SIZE 规定 kmalloc 内存池所能管理的内存块最⼤尺⼨，在 slub 实现中是 2⻚ ⼤⼩
+	// 如果使⽤ kmalloc 申请超过 2⻚ ⼤⼩的内存，则直接⾛伙伴系统
+	// 直接走伙伴系统这个，在前面已经判断过了
 	if (unlikely(size > KMALLOC_MAX_CACHE_SIZE))
 		return NULL;
+	// 根据申请内存块的尺⼨ size，在 kmalloc caches 缓存中选择合适尺⼨的内存池
 	cachep = kmalloc_slab(size, flags);
 	if (unlikely(ZERO_OR_NULL_PTR(cachep)))
 		return cachep;
+	// 向选取的 slab cache 申请内存块
 	ret = slab_alloc(cachep, flags, caller);
 
 	ret = kasan_kmalloc(cachep, ret, size, flags);

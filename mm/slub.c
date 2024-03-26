@@ -4108,14 +4108,15 @@ EXPORT_SYMBOL(__ksize);
 void kfree(const void *x)
 {
 	struct page *page;
-	void *object = (void *)x;
+	void *object = (void *)x; // x 为要释放的内存块的虚拟内存地址
 
 	trace_kfree(_RET_IP_, x);
 
 	if (unlikely(ZERO_OR_NULL_PTR(x)))
 		return;
 
-	page = virt_to_head_page(x);
+	page = virt_to_head_page(x); // 通过虚拟内存地址找到内存块所在的 page
+	// 如果 page 不在 slab cache 的管理体系中，则直接释放回伙伴系统
 	if (unlikely(!PageSlab(page))) {
 		unsigned int order = compound_order(page);
 
@@ -4126,6 +4127,7 @@ void kfree(const void *x)
 		__free_pages(page, order);
 		return;
 	}
+	// 将内存块释放回其所在的 slub 中
 	slab_free(page->slab_cache, page, object, NULL, 1, _RET_IP_);
 }
 EXPORT_SYMBOL(kfree);
