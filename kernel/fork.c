@@ -1137,7 +1137,7 @@ void mmput_async(struct mm_struct *mm)
  * This changes mm's executable file (shown as symlink /proc/[pid]/exe).
  *
  * Main users are mmput() and sys_execve(). Callers prevent concurrent
- * invocations: in mmput() nobody alive left, in execve task is single
+ * invocations: in mmput() nobody alive left, in  execve task is single
  * threaded. sys_prctl(PR_SET_MM_MAP/EXE_FILE) also needs to set the
  * mm->exe_file, but does so without using set_mm_exe_file() in order
  * to do avoid the need for any locks.

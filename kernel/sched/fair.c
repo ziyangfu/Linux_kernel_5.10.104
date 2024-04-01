@@ -4247,8 +4247,8 @@ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	 * update_curr().
 	 */
 	if (renorm && curr)
-		se->vruntime += cfs_rq->min_vruntime;
-
+		se->vruntime += cfs_rq->min_vruntime; 
+	// update_curr()顺便更新当前运⾏调度实体的虚拟时间信息	
 	update_curr(cfs_rq);
 
 	/*
@@ -4257,6 +4257,7 @@ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	 * placed in the past could significantly boost this task to the
 	 * fairness detriment of existing tasks.
 	 */
+	//  还记得之前在task_fork_fair()函数最后减去的min_vruntime吗？现在是时候加回来了
 	if (renorm && !curr)
 		se->vruntime += cfs_rq->min_vruntime;
 
@@ -5517,6 +5518,7 @@ static int sched_idle_cpu(int cpu)
  * increased. Here we update the fair scheduling stats and
  * then put the task into the rbtree:
  */
+// 将task加入就绪队列（红黑树）
 static void
 enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 {
@@ -5545,7 +5547,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		if (se->on_rq)
 			break;
 		cfs_rq = cfs_rq_of(se);
-		enqueue_entity(cfs_rq, se, flags);
+		enqueue_entity(cfs_rq, se, flags); // 入队
 
 		cfs_rq->h_nr_running++;
 		cfs_rq->idle_h_nr_running += idle_h_nr_running;
@@ -10776,11 +10778,18 @@ static void task_fork_fair(struct task_struct *p)
 	update_rq_clock(rq);
 
 	cfs_rq = task_cfs_rq(current);
-	curr = cfs_rq->curr;
+	curr = cfs_rq->curr;  // cfs_rq是CFS调度器就绪队列，curr指向当前正在cpu上运⾏的task的调度实体
 	if (curr) {
-		update_curr(cfs_rq);
-		se->vruntime = curr->vruntime;
+		// update_curr()函数是⽐较重要的函数，在很多地⽅调⽤，主要是更新当前正在运⾏的调度实体的
+		// 运⾏时间信息
+		update_curr(cfs_rq); 
+		se->vruntime = curr->vruntime;  // 初始化当前创建的新进程的虚拟时间
 	}
+	/**
+	 * place_entity()函数在进程创建以及唤醒的时候都会调⽤，创建进程的时候传递参数initial=1。主
+		要⽬的是更新调度实体得到虚拟时间（se->vruntime成员）。要和cfs_rq->min_vruntime的值保
+		持差别不⼤，如果⾮常⼩的话，岂不是要上天（疯狂占⽤cpu运⾏）
+	*/
 	place_entity(cfs_rq, se, 1);
 
 	if (sysctl_sched_child_runs_first && curr && entity_before(curr, se)) {
@@ -10791,7 +10800,17 @@ static void task_fork_fair(struct task_struct *p)
 		swap(curr->vruntime, se->vruntime);
 		resched_curr(rq);
 	}
-
+	/**
+	 * 这⾥为什么要减去cfs_rq->min_vruntime呢？因为现在计算进程的vruntime是基于当前cpu上的
+		cfs_rq，并且现在还没有加⼊当前cfs_rq的就绪队列上。等到当前进程创建完毕开始唤醒的时
+		候，加⼊的就绪队列就不⼀定是现在计算基于的cpu。所以，在加⼊就绪队列的函数中会根据情
+		况加上当前就绪队列cfs_rq->min_vruntime。为什么要“先减后加”处理呢？假设cpu0上的cfs就绪
+		队列的最⼩虚拟时间min_vruntime的值是1000000，此时创建进程的时候赋予当前进程虚拟时间
+		是1000500。但是，唤醒此进程加⼊的就绪队列却是cpu1上CFS就绪队列，cpu1上的cfs就绪队
+		列的最⼩虚拟时间min_vruntime的值如果是9000000。如果不采⽤“先减后加”的⽅法，那么该进
+		程在cpu1上运⾏肯定是“乐坏”了，疯狂的运⾏。现在的处理计算得到的调度实体的虚拟时间是
+		1000500 - 1000000 + 9000000 = 9000500，因此事情就不是那么的糟糕
+	*/
 	se->vruntime -= cfs_rq->min_vruntime;
 	rq_unlock(rq, &rf);
 }
@@ -11238,6 +11257,7 @@ static unsigned int get_rr_interval_fair(struct rq *rq, struct task_struct *task
 /*
  * All the scheduling class methods:
  */
+// CFS调度类的所有方法
 const struct sched_class fair_sched_class
 	__section("__fair_sched_class") = {
 	.enqueue_task		= enqueue_task_fair,

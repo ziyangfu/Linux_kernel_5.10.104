@@ -1580,7 +1580,8 @@ static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 	}
 
 	uclamp_rq_inc(rq, p);
-	p->sched_class->enqueue_task(rq, p, flags);
+	// 放入就绪队列。对于CFS调度器来说，就是调用 enqueue_task_fair函数
+	p->sched_class->enqueue_task(rq, p, flags);  
 }
 
 static inline void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
@@ -3343,6 +3344,7 @@ unsigned long to_ratio(u64 period, u64 runtime)
  * that must be done for every newly created context, then puts the task
  * on the runqueue and wakes it.
  */
+// 负责唤醒新创建的进程
 void wake_up_new_task(struct task_struct *p)
 {
 	struct rq_flags rf;
@@ -3361,14 +3363,18 @@ void wake_up_new_task(struct task_struct *p)
 	 */
 	p->recent_used_cpu = task_cpu(p);
 	rseq_migrate(p);
+	// 通过调⽤select_task_rq()函数重新选择cpu，通过调⽤调度类中select_task_rq⽅法选择调度类
+	// 中最空闲的cpu
 	__set_task_cpu(p, select_task_rq(p, task_cpu(p), SD_BALANCE_FORK, 0));
 #endif
 	rq = __task_rq_lock(p, &rf);
 	update_rq_clock(rq);
 	post_init_entity_util_avg(p);
-
+	// 将进程加⼊就绪队列，通过调⽤调度类中enqueue_task⽅法
 	activate_task(rq, p, ENQUEUE_NOCLOCK);
 	trace_sched_wakeup_new(p);
+	// 既然新进程已经准备就绪，那么此时需要检查新进程是否满⾜抢占当前正在运⾏进程的条件，如
+	// 果满⾜抢占条件需要设置TIF_NEED_RESCHED标志位
 	check_preempt_curr(rq, p, WF_FORK);
 #ifdef CONFIG_SMP
 	if (p->sched_class->task_woken) {
