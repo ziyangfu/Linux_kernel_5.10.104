@@ -3742,6 +3742,8 @@ asmlinkage __visible void schedule_tail(struct task_struct *prev)
 /*
  * context_switch - switch to the new MM and the new thread's register state.
  */
+// 进程虚拟地址空间的切换
+// CPU寄存器与进程栈的切换
 static __always_inline struct rq *
 context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next, struct rq_flags *rf)
@@ -3780,6 +3782,7 @@ context_switch(struct rq *rq, struct task_struct *prev,
 		 * case 'prev->active_mm == next->mm' through
 		 * finish_task_switch()'s mmdrop().
 		 */
+		// 切换进程虚拟内存空间
 		switch_mm_irqs_off(prev->active_mm, next->mm, next);
 
 		if (!prev->mm) {                        // from kernel
@@ -3794,7 +3797,7 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	prepare_lock_switch(rq, next, rf);
 
 	/* Here we just switch the register state and the stack. */
-	switch_to(prev, next, prev);
+	switch_to(prev, next, prev);  // 切换 CPU 上下⽂和进程栈
 	barrier();
 
 	return finish_task_switch(prev);

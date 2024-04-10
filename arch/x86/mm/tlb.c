@@ -418,7 +418,7 @@ void cr4_update_pce(void *ignored)
 #else
 static inline void cr4_update_pce_mm(struct mm_struct *mm) { }
 #endif
-
+// 用于切换进程虚拟内存空间
 void switch_mm_irqs_off(struct mm_struct *prev, struct mm_struct *next,
 			struct task_struct *tsk)
 {
@@ -558,6 +558,9 @@ void switch_mm_irqs_off(struct mm_struct *prev, struct mm_struct *next,
 	if (need_flush) {
 		this_cpu_write(cpu_tlbstate.ctxs[new_asid].ctx_id, next->context.ctx_id);
 		this_cpu_write(cpu_tlbstate.ctxs[new_asid].tlb_gen, next_tlb_gen);
+		// 通过 __sme_pa 将 pgd 的虚拟内存地址转换为物理内存地址
+		// 并加载到 cr3 寄存器中
+		// cr3 寄存器中存放的是当前进程顶级⻚表 pgd 的物理内存地址
 		load_new_mm_cr3(next->pgd, new_asid, true);
 
 		trace_tlb_flush(TLB_FLUSH_ON_TASK_SWITCH, TLB_FLUSH_ALL);

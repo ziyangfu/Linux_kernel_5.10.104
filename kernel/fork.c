@@ -620,6 +620,9 @@ fail_nomem:
 
 static inline int mm_alloc_pgd(struct mm_struct *mm)
 {
+	// 内核为⼦进程分配好其顶级⻚表起始地址之后
+	// 赋值给⼦进程 mm_struct 结构中的 pgd 属性
+	// 实际的分配会与体系结构有关
 	mm->pgd = pgd_alloc(mm);
 	if (unlikely(!mm->pgd))
 		return -ENOMEM;
@@ -1048,8 +1051,8 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 		mm->flags = default_dump_filter;
 		mm->def_flags = 0;
 	}
-
-	if (mm_alloc_pgd(mm))
+	// 为⼦进程分配顶级⻚表起始地址 pgd
+	if (mm_alloc_pgd(mm))  // 这里调用的是函数（621行），而不是那个宏定义
 		goto fail_nopgd;
 
 	if (init_new_context(p, mm))
@@ -1355,18 +1358,19 @@ void exec_mm_release(struct task_struct *tsk, struct mm_struct *mm)
 static struct mm_struct *dup_mm(struct task_struct *tsk,
 				struct mm_struct *oldmm)
 {
+	// ⼦进程虚拟内存空间，此时还是空的
 	struct mm_struct *mm;
 	int err;
 	// 从 mm_struct 对象专属的 slab 对象池中申请 mm_struct 对象
 	mm = allocate_mm();
 	if (!mm)
 		goto fail_nomem;
-
+	// 将⽗进程 mm_struct 结构⾥的内容全部拷⻉到⼦进程 mm_struct 结构中
 	memcpy(mm, oldmm, sizeof(*mm));
-
+	// 为⼦进程分配顶级⻚表起始地址并赋值给 mm_struct->pgd
 	if (!mm_init(mm, tsk, mm->user_ns))
 		goto fail_nomem;
-
+	// 拷⻉⽗进程的虚拟内存空间中的内容以及⻚表到⼦进程中
 	err = dup_mmap(mm, oldmm);
 	if (err)
 		goto free_pt;
@@ -1388,7 +1392,7 @@ free_pt:
 fail_nomem:
 	return NULL;
 }
-
+// 拷贝⽗进程的虚拟内存空间以及⻚表
 static int copy_mm(unsigned long clone_flags, struct task_struct *tsk)
 {
 	struct mm_struct *mm, *oldmm;
