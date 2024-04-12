@@ -426,7 +426,7 @@ pgd_t *pgd_alloc(struct mm_struct *mm)
 	pgd_t *pgd;
 	pmd_t *u_pmds[MAX_PREALLOCATED_USER_PMDS];
 	pmd_t *pmds[MAX_PREALLOCATED_PMDS];
-
+	// 为⼦进程分配顶级⻚表
 	pgd = _pgd_alloc();
 
 	if (pgd == NULL)
@@ -449,7 +449,7 @@ pgd_t *pgd_alloc(struct mm_struct *mm)
 	 * never see a partially populated pgd.
 	 */
 	spin_lock(&pgd_lock);
-
+	// 拷⻉内核⻚表到⼦进程中
 	pgd_ctor(mm, pgd);
 	pgd_prepopulate_pmd(mm, pgd, pmds);
 	pgd_prepopulate_user_pmd(mm, pgd, u_pmds);

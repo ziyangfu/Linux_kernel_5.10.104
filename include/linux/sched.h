@@ -763,6 +763,20 @@ struct task_struct {
 #endif
 
 	struct mm_struct		*mm;
+	/**
+	 * 内核线程有⼀点和普通的进程不同，内核线程只能运⾏在内核态，⽽在内核态中，所有进
+		程看到的虚拟内存空间全部都是⼀样的，所以对于内核线程来说并不需要为其单独的定义
+		mm_struct 结构来描述内核虚拟内存空间，内核线程的 struct task_struct 结构中的 mm
+		属性指向 null，内核线程之间调度是不涉及地址空间切换的，从⽽避免了⽆⽤的 TLB 缓
+		存以及 CPU ⾼速缓存的刷新
+
+		当⼀个内核线程被调度时，它会发现⾃⼰的虚拟地址空间为 null，虽然它不会访问⽤户态的内存，
+		但是它会访问内核内存，聪明的内核会将调度之前的上⼀个⽤户态进程的虚拟内存空间 mm_struct 
+		直接赋值给内核线程 task_struct->active_mm 中
+
+		内核线程的 active_mm 指向前⼀个进程的地址空间
+	    普通进程的 active_mm 指向 null
+	*/
 	struct mm_struct		*active_mm;
 
 	/* Per-thread vma caching: */

@@ -800,10 +800,11 @@ void __init setup_arch(char **cmdline_p)
 	 * copy kernel address range established so far and switch
 	 * to the proper swapper page table
 	 */
+	// 初始化内核⻚表
 	clone_pgd_range(swapper_pg_dir     + KERNEL_PGD_BOUNDARY,
 			initial_page_table + KERNEL_PGD_BOUNDARY,
 			KERNEL_PGD_PTRS);
-
+	// 将内核顶级⻚表起始地址转换为物理地址，并加载到 cr3 寄存器中
 	load_cr3(swapper_pg_dir);
 	/*
 	 * Note: Quark X1000 CPUs advertise PGE incorrectly and require
@@ -814,6 +815,7 @@ void __init setup_arch(char **cmdline_p)
 	 * quirk is invoked before subsequent calls to __flush_tlb_all()
 	 * so proper operation is guaranteed.
 	 */
+	// 刷新 TLB ⻚表缓存
 	__flush_tlb_all();
 #else
 	printk(KERN_INFO "Command line: %s\n", boot_command_line);
