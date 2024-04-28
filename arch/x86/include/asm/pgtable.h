@@ -179,7 +179,7 @@ static inline int pud_young(pud_t pud)
 {
 	return pud_flags(pud) & _PAGE_ACCESSED;
 }
-
+// 查询内存⻚是否可写
 static inline int pte_write(pte_t pte)
 {
 	return pte_flags(pte) & _PAGE_RW;
@@ -761,7 +761,7 @@ static inline int pte_same(pte_t a, pte_t b)
 {
 	return a.pte == b.pte;
 }
-
+// 查询 PTE 指向的物理内存⻚是否在内存中
 static inline int pte_present(pte_t a)
 {
 	return pte_flags(a) & (_PAGE_PRESENT | _PAGE_PROTNONE);

@@ -496,18 +496,30 @@ unsigned long vm_mmap_pgoff(struct file *file, unsigned long addr,
 	unsigned long flag, unsigned long pgoff)
 {
 	unsigned long ret;
+	// 获取进程虚拟内存空间
 	struct mm_struct *mm = current->mm;
+	// 是否需要为映射的 VMA，提前分配物理内存页，避免后续的缺页
+    // 取决于 flag 是否设置了 MAP_POPULATE 或者 MAP_LOCKED，
+	// 这里的 populate 表示需要分配物理内存的大小
 	unsigned long populate;
-	LIST_HEAD(uf);
+	LIST_HEAD(uf);   // struct list_head uf ......
 
 	ret = security_mmap_file(file, prot, flag);
 	if (!ret) {
+		// 对进程虚拟内存空间加写锁保护，防止多线程并发修改
 		if (mmap_write_lock_killable(mm))
 			return -EINTR;
+		// 开始 mmap 内存映射，在进程虚拟内存空间中分配一段 vma，并建立相关映射关系
+        // ret 为映射虚拟内存区域的起始地址
+		// 在 mm/mmap.c 中
 		ret = do_mmap(file, addr, len, prot, flag, pgoff, &populate,
 			      &uf);
+		// 释放写锁
 		mmap_write_unlock(mm);
 		userfaultfd_unmap_complete(mm, &uf);
+
+		// 提前分配物理内存页面，后续访问不会缺页
+        // 为 [ret , ret + populate] 这段虚拟内存立即分配物理内存
 		if (populate)
 			mm_populate(ret, populate);
 	}

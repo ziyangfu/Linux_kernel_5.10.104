@@ -439,9 +439,11 @@ struct file *hugetlb_file_setup(const char *name, size_t size, vm_flags_t acct,
 
 static inline bool is_file_hugepages(struct file *file)
 {
+	// hugetlbfs ⽂件系统中的⽂件默认由⼤⻚⽀持
+	// mmap 通过映射 hugetlbfs 中的⽂件实现⽂件⼤⻚映射
 	if (file->f_op == &hugetlbfs_file_operations)
 		return true;
-
+	// 通过 shmat 使⽤匿名⼤⻚，这⾥不需要关注
 	return is_file_shm_hugepages(file);
 }
 
