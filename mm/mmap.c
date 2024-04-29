@@ -1401,6 +1401,7 @@ static inline bool file_mmap_ok(struct file *file, struct inode *inode,
 /*
  * The caller must write-lock current->mm->mmap_lock
  */
+// mmap核心函数
 // 开始 mmap 内存映射，在进程虚拟内存空间中分配一段 vma，并建立相关映射关系
 unsigned long do_mmap(struct file *file, unsigned long addr,
 			unsigned long len, unsigned long prot,
@@ -1444,6 +1445,10 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 
 	/* Too many mappings? */
 	// 是否已经超过进程地址空间所能容纳的最大VMA个数
+	// ⼀个进程虚拟内存空间内所能包含的虚拟内存区域 vma 是有数量限制的
+	// sysctl_max_map_count 规定了进程虚拟内存空间所能包含 VMA 的最⼤个数
+	// 可以通过 /proc/sys/vm/max_map_count 内核参数调整 sysctl_max_map_count
+	// mmap 需要再进程虚拟内存空间中创建映射的 VMA，这⾥需要检查 VMA 的个数是否超过最⼤限制
 	if (mm->map_count > sysctl_max_map_count)
 		return -ENOMEM;
 
@@ -1451,6 +1456,8 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	 * that it represents a valid section of the address space.
 	 */
 	// 为映射划分虚拟内存区域
+	// 在进程虚拟内存空间中寻找⼀块未映射的虚拟内存范围
+	// 这段虚拟内存范围后续将会⽤于 mmap 内存映射
 	addr = get_unmapped_area(file, addr, len, pgoff, flags);
 	if (IS_ERR_VALUE(addr))
 		return addr;
@@ -1472,13 +1479,16 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	 * to. we assume access permissions have been handled by the open
 	 * of the memory object, so we don't do any here.
 	 */
+	// 通过 calc_vm_prot_bits 和 calc_vm_flag_bits 将 mmap 参数 prot , flag 中
+	// 设置的访问权限以及映射⽅式等枚举值转换为统⼀的 vm_flags，后续⼀起映射进 VMA 的相应属性中
 	vm_flags = calc_vm_prot_bits(prot, pkey) | calc_vm_flag_bits(flags) |
 			mm->def_flags | VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC;
 	// 是否需要锁定物理内存
+	// 设置了 MAP_LOCKED，表⽰⽤户期望 mmap 背后映射的物理内存锁定在内存中，不允许 swap
 	if (flags & MAP_LOCKED)
-		if (!can_do_mlock())
+		if (!can_do_mlock()) // 这⾥需要检查是否可以将本次映射的物理内存锁定
 			return -EPERM;
-
+	// 进⼀步检查锁定的内存⻚数是否超过了内核限制
 	if (mlock_future_check(mm, vm_flags, len))
 		return -EAGAIN;
 
@@ -1573,6 +1583,11 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	 * Set 'VM_NORESERVE' if we should not account for the
 	 * memory use of this mapping.
 	 */
+	// 通常内核会为 mmap 申请虚拟内存的时候会综合考虑 ram 以及 swap space 的总体大小。
+    // 当映射的虚拟内存过大，而没有足够的 swap space 的时候， mmap 就会失败。
+    // 设置 MAP_NORESERVE，内核将不会考虑上面的限制因素
+    // 这样当通过 mmap 申请大量的虚拟内存，并且当前系统没有足够的 swap space 的时候，
+	// 		mmap 系统调用依然能够成功
 	if (flags & MAP_NORESERVE) {
 		/* We honor MAP_NORESERVE if allowed to overcommit */
 		if (sysctl_overcommit_memory != OVERCOMMIT_NEVER)
@@ -1582,7 +1597,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 		if (file && is_file_hugepages(file))
 			vm_flags |= VM_NORESERVE;
 	}
-
+	// mmap_region 函数是整个内存映射的核⼼
 	addr = mmap_region(file, addr, len, vm_flags, pgoff, uf);
 	if (!IS_ERR_VALUE(addr) &&
 	    ((vm_flags & VM_LOCKED) ||
@@ -1734,7 +1749,11 @@ static inline int accountable_mapping(struct file *file, vm_flags_t vm_flags)
 
 	return (vm_flags & (VM_NORESERVE | VM_SHARED | VM_WRITE)) == VM_WRITE;
 }
-
+/**
+ * \details 
+ * ⾸先会为这段选取出来的映射虚拟内存区域分配 vma 结构，并根据映射信息进⾏初始化，
+ * 以及建⽴ vma 与相关映射⽂件的关系，最后将这段 vma 插⼊到进程的虚拟内存空间中
+*/
 unsigned long mmap_region(struct file *file, unsigned long addr,
 		unsigned long len, vm_flags_t vm_flags, unsigned long pgoff,
 		struct list_head *uf)

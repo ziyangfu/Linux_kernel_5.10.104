@@ -357,8 +357,8 @@ struct vm_area_struct {
 	 * Access permissions of this VMA.
 	 * See vmf_insert_mixed_prot() for discussion.
 	 */
-	pgprot_t vm_page_prot;
-	unsigned long vm_flags;		/* Flags, see mm.h. */
+	pgprot_t vm_page_prot;		// 该映射区域的访问权限
+	unsigned long vm_flags;		/* Flags, see mm.h. */  // 内存映射方式
 
 	/*
 	 * For areas with an address space and backing store,
