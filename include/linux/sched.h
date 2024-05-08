@@ -77,11 +77,13 @@ struct io_uring_task;
  */
 
 /* Used in tsk->state: */
-#define TASK_RUNNING			0x0000
-#define TASK_INTERRUPTIBLE		0x0001
-#define TASK_UNINTERRUPTIBLE		0x0002
-#define __TASK_STOPPED			0x0004
-#define __TASK_TRACED			0x0008
+#define TASK_RUNNING			0x0000  // 表示进程正在运行或者已经准备好运行，并且正在等待CPU执行
+#define TASK_INTERRUPTIBLE		0x0001  // 表示进程当前处于可中断的等待状态
+// 表示进程处于不可中断的等待状态
+// 这种状态下的进程不会对大多数信号做出响应，因此不能被信号唤醒。只有当它等待的特定事件发生时，进程才会继续执行。
+#define TASK_UNINTERRUPTIBLE		0x0002  
+#define __TASK_STOPPED			0x0004   //表示进程被停止执行
+#define __TASK_TRACED			0x0008   //进程被跟踪
 /* Used in tsk->exit_state: */
 #define EXIT_DEAD			0x0010
 #define EXIT_ZOMBIE			0x0020
