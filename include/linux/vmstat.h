@@ -168,21 +168,21 @@ static inline unsigned long zone_numa_state_snapshot(struct zone *zone,
 	return x;
 }
 #endif /* CONFIG_NUMA */
-
+/* 增加页面数量到内存管理区vm_stat数组和全局vm_zone_stat数组中 */
 static inline void zone_page_state_add(long x, struct zone *zone,
 				 enum zone_stat_item item)
 {
 	atomic_long_add(x, &zone->vm_stat[item]);
 	atomic_long_add(x, &vm_zone_stat[item]);
 }
-
+/* 增加页面数量到内存节点vm_stat数组和全局vm_node_stat数组中 */
 static inline void node_page_state_add(long x, struct pglist_data *pgdat,
 				 enum node_stat_item item)
 {
 	atomic_long_add(x, &pgdat->vm_stat[item]);
 	atomic_long_add(x, &vm_node_stat[item]);
 }
-
+/* 读取全局vm_zone_stat数组中统计数据 */
 static inline unsigned long global_zone_page_state(enum zone_stat_item item)
 {
 	long x = atomic_long_read(&vm_zone_stat[item]);

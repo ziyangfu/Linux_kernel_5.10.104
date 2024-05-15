@@ -1014,7 +1014,7 @@ static int inet_compat_ioctl(struct socket *sock, unsigned int cmd, unsigned lon
 	}
 }
 #endif /* CONFIG_COMPAT */
-
+// 流式协议
 const struct proto_ops inet_stream_ops = {
 	.family		   = PF_INET,
 	.flags		   = PROTO_CMSG_DATA_ONLY,
@@ -1049,7 +1049,7 @@ const struct proto_ops inet_stream_ops = {
 	.set_rcvlowat	   = tcp_set_rcvlowat,
 };
 EXPORT_SYMBOL(inet_stream_ops);
-
+// 报式协议
 const struct proto_ops inet_dgram_ops = {
 	.family		   = PF_INET,
 	.owner		   = THIS_MODULE,

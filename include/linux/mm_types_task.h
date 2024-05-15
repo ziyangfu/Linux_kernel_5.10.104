@@ -41,10 +41,11 @@ struct vmacache {
  * kernel/fork.c
  */
 enum {
-	MM_FILEPAGES,	/* Resident file mapping pages */
-	MM_ANONPAGES,	/* Resident anonymous pages */
-	MM_SWAPENTS,	/* Anonymous swap entries */
-	MM_SHMEMPAGES,	/* Resident shared memory pages */
+	MM_FILEPAGES,	/* Resident file mapping pages */  	// 文件映射页数量
+	MM_ANONPAGES,	/* Resident anonymous pages */		// 匿名页数量
+	MM_SWAPENTS,	/* Anonymous swap entries */		// 匿名交换页数量
+	MM_SHMEMPAGES,	/* Resident shared memory pages */	// 共享内存页数量
+	MM_NR_TYPES,
 	NR_MM_COUNTERS
 };
 

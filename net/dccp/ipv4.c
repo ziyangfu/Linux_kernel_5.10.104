@@ -970,7 +970,9 @@ static const struct net_protocol dccp_v4_protocol = {
 	.netns_ok	= 1,
 	.icmp_strict_tag_validation = 1,
 };
-
+// DCCP: 数据拥塞控制协议
+// 针对传输层中UDP的新传输的协议而发展出来，用来传输实时业务
+// 可以进行拥塞控制的非可靠传输协议，并同时提供多种拥塞控制机制，在通信开始时由用户进行协商选择
 static const struct proto_ops inet_dccp_ops = {
 	.family		   = PF_INET,
 	.owner		   = THIS_MODULE,

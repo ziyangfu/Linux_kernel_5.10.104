@@ -178,16 +178,23 @@ enum zone_stat_item {
 #endif
 	NR_FREE_CMA_PAGES,
 	NR_VM_ZONE_STAT_ITEMS };
-
+/*
+ * 这个枚举定义了与虚拟内存节点状态相关的项目类型。
+ * 它们用于跟踪和管理内存的使用情况，包括匿名页、文件页、
+ * 可回收的slab等的状态。这些状态项对于内存管理，包括
+ * 页面回收和工作集调整等操作至关重要。
+ */
 enum node_stat_item {
 	NR_LRU_BASE,
+	/* 非活动状态的匿名页面 */
 	NR_INACTIVE_ANON = NR_LRU_BASE, /* must match order of LRU_[IN]ACTIVE */
 	NR_ACTIVE_ANON,		/*  "     "     "   "       "         */
 	NR_INACTIVE_FILE,	/*  "     "     "   "       "         */
 	NR_ACTIVE_FILE,		/*  "     "     "   "       "         */
+	/* 无法回收的页面 */
 	NR_UNEVICTABLE,		/*  "     "     "   "       "         */
-	NR_SLAB_RECLAIMABLE_B,
-	NR_SLAB_UNRECLAIMABLE_B,
+	NR_SLAB_RECLAIMABLE_B,  	// 可回收的slab分配器页面
+	NR_SLAB_UNRECLAIMABLE_B, 	// 不可回收的slab分配器页面
 	NR_ISOLATED_ANON,	/* Temporary isolated pages from anon lru */
 	NR_ISOLATED_FILE,	/* Temporary isolated pages from file lru */
 	WORKINGSET_NODES,
@@ -262,11 +269,11 @@ static __always_inline bool vmstat_item_in_bytes(int idx)
 #define LRU_FILE 2
 
 enum lru_list {
-	LRU_INACTIVE_ANON = LRU_BASE,
-	LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE,
-	LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE,
-	LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE,
-	LRU_UNEVICTABLE,
+	LRU_INACTIVE_ANON = LRU_BASE,    					// 不活动的匿名页面
+	LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE,			// 活动匿名页面
+	LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE,	// 不活动的文件缓存页面，优先换出
+	LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE,	// 活动的文件缓存页面，优先换出
+	LRU_UNEVICTABLE,	// 不可回收的页面
 	NR_LRU_LISTS
 };
 

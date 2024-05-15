@@ -3423,7 +3423,7 @@ out:
 		enable_swap_slots_cache();
 	return error;
 }
-
+// proc/meminfo中swap部分的数据来源
 void si_swapinfo(struct sysinfo *val)
 {
 	unsigned int type;

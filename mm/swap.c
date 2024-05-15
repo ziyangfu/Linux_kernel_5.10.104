@@ -419,6 +419,25 @@ static void __lru_cache_activate_page(struct page *page)
  * When a newly allocated page is not yet visible, so safe for non-atomic ops,
  * __SetPageReferenced(page) may be substituted for mark_page_accessed(page).
  */
+/**
+LRU算法的改进：第二次机会法
+第二次机会法是在经典LRU链表算法上做出的一些改进，目的是减少经常被访问的页面频繁的从链表换出，添加的操作。
+在经典LRU算法中，新产生的页面会被添加到LRU链表头部，并将现有的LRU链表中存在的页面向后移动一个位置。
+当系统内存短缺时，LRU链表尾部的页面将被换出。当系统在需要这些页面时，这些页面会重新置于LRU链表的表头。
+显然，这种设计没有考虑到该页面是频繁使用还是很少使用的页面。这将导致频繁使用的页面依然会被LRU链表换出。
+
+第二次机会法为了避免频繁访问的页面被换出做了如下改进：
+
+当选择换出页面时，依然和经典LRU链表算法一样，选择链表尾部的页面。
+但是第二次机会法设置了一个硬件访问状态位。
+当需要换出页面时就会检查这个状态位，如果为0就将这个页面换出，如果为1就给这个页面第二次机会，
+并选择下一个换出。页面在得到第二次机会时会将访问位清0。如果页面在此期间再次被访问，则访问位再次置1.
+于是，给了第二次机会的页面将不会被淘汰。因此如果一个页面被经常访问到，其访问状态位总是保持为1。
+将一直不会被淘汰。
+
+Linux内核使用PG_active和PG_referebced两个软件标志位实现第二次机会法。
+PG_active表示页面是否为活跃页面，PG_referebced表示这个页面是否被引用过
+*/
 void mark_page_accessed(struct page *page)
 {
 	page = compound_head(page);
@@ -1006,18 +1025,18 @@ void lru_add_page_tail(struct page *page, struct page *page_tail,
 	}
 }
 #endif /* CONFIG_TRANSPARENT_HUGEPAGE */
-
+// 将页面添加到LRU列表中
 static void __pagevec_lru_add_fn(struct page *page, struct lruvec *lruvec,
 				 void *arg)
 {
 	enum lru_list lru;
 	int was_unevictable = TestClearPageUnevictable(page);
 	int nr_pages = thp_nr_pages(page);
-
+	/* 确保页面当前没有在LRU列表中 */
 	VM_BUG_ON_PAGE(PageLRU(page), page);
 
 	/*
-	 * Page becomes evictable in two ways:
+	 * Page becomes evictable [可回收的] in two ways:
 	 * 1) Within LRU lock [munlock_vma_page() and __munlock_pagevec()].
 	 * 2) Before acquiring LRU lock to put the page to correct LRU and then
 	 *   a) do PageLRU check with lock [check_move_unevictable_pages]
@@ -1045,20 +1064,24 @@ static void __pagevec_lru_add_fn(struct page *page, struct lruvec *lruvec,
 	SetPageLRU(page);
 	smp_mb__after_atomic();
 
-	if (page_evictable(page)) {
-		lru = page_lru(page);
+	if (page_evictable(page)) { //根据page->mapping映射判断页面是否属于不可回收页面
+		lru = page_lru(page);	//获取页面LRU类型
+		/* 如果页面之前是不可回收的，现在变为可回收，记录相关事件 */
 		if (was_unevictable)
 			__count_vm_events(UNEVICTABLE_PGRESCUED, nr_pages);
 	} else {
+		/* 如果页面是不可回收的，将其状态设置为不可回收，记录相关事件 */
 		lru = LRU_UNEVICTABLE;
 		ClearPageActive(page);
 		SetPageUnevictable(page);
+		/* 如果页面之前是可回收的，现在变为不可回收，记录相关事件 */
 		if (!was_unevictable)
 			__count_vm_events(UNEVICTABLE_PGCULLED, nr_pages);
 	}
-
+	/* 将页面添加到指定的LRU列表中，并进行相关的跟踪 */
 	add_page_to_lru_list(page, lruvec, lru);
-	trace_mm_lru_insertion(page, lru);
+	// tracepoint:pagemap:mm_lru_insertion
+	trace_mm_lru_insertion(page, lru);  
 }
 
 /*

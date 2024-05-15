@@ -5591,7 +5591,7 @@ static inline void show_node(struct zone *zone)
 	if (IS_ENABLED(CONFIG_NUMA))
 		printk("Node %d ", zone_to_nid(zone));
 }
-
+// proc/MemAvailable 的数据来源
 long si_mem_available(void)
 {
 	long available;
@@ -5600,11 +5600,11 @@ long si_mem_available(void)
 	unsigned long pages[NR_LRU_LISTS];
 	unsigned long reclaimable;
 	struct zone *zone;
-	int lru;
-
+	int lru;  // 最近最少使用算法
+	// 0 ~ 5 
 	for (lru = LRU_BASE; lru < NR_LRU_LISTS; lru++)
 		pages[lru] = global_node_page_state(NR_LRU_BASE + lru);
-
+	// 函数遍历所有区域，计算所有区域的低水位页面数，并将其累加到wmark_low变量中
 	for_each_zone(zone)
 		wmark_low += low_wmark_pages(zone);
 
@@ -5612,6 +5612,8 @@ long si_mem_available(void)
 	 * Estimate the amount of memory available for userspace allocations,
 	 * without causing swapping.
 	 */
+	// 先计算可用于用户空间分配的内存数量，不包括交换，即meminfo中的MemFree值。
+	// 它从全局区域页面状态中的自由页面数中减去总保留页面数，得到available变量的初始值
 	available = global_zone_page_state(NR_FREE_PAGES) - totalreserve_pages;
 
 	/*
@@ -5619,6 +5621,9 @@ long si_mem_available(void)
 	 * start swapping. Assume at least half of the page cache, or the
 	 * low watermark worth of cache, needs to stay.
 	 */
+	// 估计可以释放的页面缓存大小。活动文件和非活动文件页面缓存的总和
+	// 看低水位线下有多少页面缓存能被释放，减去与1/2 pagecache对比的较小值
+	// 然后将结果累加到available中
 	pagecache = pages[LRU_ACTIVE_FILE] + pages[LRU_INACTIVE_FILE];
 	pagecache -= min(pagecache / 2, wmark_low);
 	available += pagecache;
@@ -5628,6 +5633,7 @@ long si_mem_available(void)
 	 * items that are in use, and cannot be freed. Cap this estimate at the
 	 * low watermark.
 	 */
+	// 估计可回收的slab页面和可回收的非slab页面
 	reclaimable = global_node_page_state_pages(NR_SLAB_RECLAIMABLE_B) +
 		global_node_page_state(NR_KERNEL_MISC_RECLAIMABLE);
 	available += reclaimable - min(reclaimable / 2, wmark_low);
@@ -5637,12 +5643,12 @@ long si_mem_available(void)
 	return available;
 }
 EXPORT_SYMBOL_GPL(si_mem_available);
-
+// proc/meminfo的大量数据来源，具体见sysinfo结构体
 void si_meminfo(struct sysinfo *val)
 {
 	val->totalram = totalram_pages();
 	val->sharedram = global_node_page_state(NR_SHMEM);
-	val->freeram = global_zone_page_state(NR_FREE_PAGES);
+	val->freeram = global_zone_page_state(NR_FREE_PAGES); // 可用于用户空间的free内存
 	val->bufferram = nr_blockdev_pages();
 	val->totalhigh = totalhigh_pages();
 	val->freehigh = nr_free_highpages();

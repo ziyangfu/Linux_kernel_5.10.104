@@ -4437,16 +4437,16 @@ static void __sched notrace __schedule(bool preempt)
 	struct rq *rq;
 	int cpu;
 
-	cpu = smp_processor_id();
-	rq = cpu_rq(cpu);
-	prev = rq->curr;
+	cpu = smp_processor_id(); // 获取当前处理器ID
+	rq = cpu_rq(cpu);		  // 获取当前CPU的运行队列
+	prev = rq->curr;		  // 获取当前运行的任务
 
 	schedule_debug(prev, preempt);
 
 	if (sched_feat(HRTICK))
 		hrtick_clear(rq);
 
-	local_irq_disable();
+	local_irq_disable();  // 关闭本地中断
 	rcu_note_context_switch(preempt);
 
 	/*
@@ -4471,7 +4471,7 @@ static void __sched notrace __schedule(bool preempt)
 	rq->clock_update_flags <<= 1;
 	update_rq_clock(rq);
 
-	switch_count = &prev->nivcsw;
+	switch_count = &prev->nivcsw;  // 初始化切换计数器
 
 	/*
 	 * We must load prev->state once (task_struct::state is volatile), such
@@ -4514,8 +4514,8 @@ static void __sched notrace __schedule(bool preempt)
 		switch_count = &prev->nvcsw;
 	}
 
-	next = pick_next_task(rq, prev, &rf);
-	clear_tsk_need_resched(prev);
+	next = pick_next_task(rq, prev, &rf);  // 选择下一个要运行的任务
+	clear_tsk_need_resched(prev);  // 清除当前任务的重新调度标志
 	clear_preempt_need_resched();
 
 	if (likely(prev != next)) {
@@ -4546,7 +4546,7 @@ static void __sched notrace __schedule(bool preempt)
 		trace_sched_switch(preempt, prev, next);
 
 		/* Also unlocks the rq: */
-		rq = context_switch(rq, prev, next, &rf);
+		rq = context_switch(rq, prev, next, &rf);  // 上下文切换
 	} else {
 		rq->clock_update_flags &= ~(RQCF_ACT_SKIP|RQCF_REQ_SKIP);
 		rq_unlock_irq(rq, &rf);

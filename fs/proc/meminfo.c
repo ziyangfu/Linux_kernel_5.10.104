@@ -28,7 +28,7 @@ static void show_val_kb(struct seq_file *m, const char *s, unsigned long num)
 	seq_put_decimal_ull_width(m, s, num << (PAGE_SHIFT - 10), 8);
 	seq_write(m, " kB\n", 4);
 }
-
+// proc/meminfo 中的数据
 static int meminfo_proc_show(struct seq_file *m, void *v)
 {
 	struct sysinfo i;
@@ -39,8 +39,8 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	unsigned long sreclaimable, sunreclaim;
 	int lru;
 
-	si_meminfo(&i);
-	si_swapinfo(&i);
+	si_meminfo(&i);   // 见 mm/page_alloc.c
+	si_swapinfo(&i);  // see mm/swapfile.c
 	committed = vm_memory_committed();
 
 	cached = global_node_page_state(NR_FILE_PAGES) -
