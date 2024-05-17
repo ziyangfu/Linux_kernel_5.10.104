@@ -1395,6 +1395,7 @@ fail_nomem:
 // 拷贝⽗进程的虚拟内存空间以及⻚表
 static int copy_mm(unsigned long clone_flags, struct task_struct *tsk)
 {
+	// ⼦进程虚拟内存空间，⽗进程虚拟内存空间
 	struct mm_struct *mm, *oldmm;
 	int retval;
 
@@ -1413,25 +1414,33 @@ static int copy_mm(unsigned long clone_flags, struct task_struct *tsk)
 	 *
 	 * We need to steal a active VM for that..
 	 */
+	// 获取⽗进程虚拟内存空间
 	oldmm = current->mm;
 	if (!oldmm)
 		return 0;
 
 	/* initialize the new vmacache entries */
 	vmacache_flush(tsk);
-
+	// 通过 vfork 或者 clone 系统调⽤创建出的⼦进程（线程）和⽗进程共享虚拟内存空间
+	// 子进程共享父进程虚拟地址空间，实际子进程就是所谓的线程
 	if (clone_flags & CLONE_VM) {
+		// 增加⽗进程虚拟地址空间的引⽤计数
 		mmget(oldmm);
+		// 直接将⽗进程的虚拟内存空间赋值给⼦进程（线程）
+		// 线程共享其所属进程的虚拟内存空间
 		mm = oldmm;
 		goto good_mm;
 	}
 
 	retval = -ENOMEM;
+	// 如果是 fork 系统调⽤创建出的⼦进程，则将⽗进程的虚拟内存空间以及相关⻚表
+	// 拷⻉到⼦进程中的 mm_struct 结构中
 	mm = dup_mm(tsk, current->mm);
 	if (!mm)
 		goto fail_nomem;
 
 good_mm:
+	// 将拷⻉出来的⽗进程虚拟内存空间 mm_struct 赋值给⼦进程
 	tsk->mm = mm;
 	tsk->active_mm = mm;
 	return 0;
@@ -1856,6 +1865,7 @@ static void copy_oom_score_adj(u64 clone_flags, struct task_struct *tsk)
  * parts of the process environment (as per the clone
  * flags). The actual kick-off is left to the caller.
  */
+// fork一个进程，但新进程在这里还没有真正运行
 static __latent_entropy struct task_struct *copy_process(
 					struct pid *pid,
 					int trace,
@@ -1952,6 +1962,7 @@ static __latent_entropy struct task_struct *copy_process(
 		goto fork_out;
 
 	retval = -ENOMEM;
+	// 创建 task_struct 结构
 	p = dup_task_struct(current, node);
 	if (!p)
 		goto fork_out;
@@ -2079,6 +2090,7 @@ static __latent_entropy struct task_struct *copy_process(
 #endif
 
 	/* Perform scheduler related setup. Assign this task to a CPU. */
+	// 将进程分配给某个CPU
 	retval = sched_fork(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_policy;
@@ -2126,7 +2138,7 @@ static __latent_entropy struct task_struct *copy_process(
 
 	if (pid != &init_struct_pid) {
 		pid = alloc_pid(p->nsproxy->pid_ns_for_children, args->set_tid,
-				args->set_tid_size);
+				args->set_tid_size);   // 分配PID
 		if (IS_ERR(pid)) {
 			retval = PTR_ERR(pid);
 			goto bad_fork_cleanup_thread;
@@ -2429,6 +2441,7 @@ struct mm_struct *copy_init_mm(void)
  *
  * args->exit_signal is expected to be checked for sanity by the caller.
  */
+// fork流程主要函数
 pid_t kernel_clone(struct kernel_clone_args *args)
 {
 	u64 clone_flags = args->flags;
@@ -2469,7 +2482,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 		if (likely(!ptrace_event_enabled(current, trace)))
 			trace = 0;
 	}
-
+	// 为进程创建 task_struct 结构，⽤⽗进程的资源填充 task_struct 信息
 	p = copy_process(NULL, trace, NUMA_NO_NODE, args);
 	add_latent_entropy();
 
@@ -2480,6 +2493,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	 * Do this prior waking up the new thread - the thread pointer
 	 * might get invalid after that point, if the thread exits quickly.
 	 */
+	/* 在新进程和父进程间记录调度事件 */
 	trace_sched_process_fork(current, p);
 
 	pid = get_task_pid(p, PIDTYPE_PID);
@@ -2493,7 +2507,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 		init_completion(&vfork);
 		get_task_struct(p);
 	}
-
+	/* 唤醒新进程，使其开始执行 */
 	wake_up_new_task(p);
 
 	/* forking complete and child started to run, tell ptracer */

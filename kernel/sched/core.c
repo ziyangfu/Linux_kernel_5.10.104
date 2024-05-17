@@ -312,10 +312,10 @@ void update_rq_clock(struct rq *rq)
 		SCHED_WARN_ON(rq->clock_update_flags & RQCF_UPDATED);
 	rq->clock_update_flags |= RQCF_UPDATED;
 #endif
-
+	// 计算当前时间与rq时钟的差值
 	delta = sched_clock_cpu(cpu_of(rq)) - rq->clock;
 	if (delta < 0)
-		return;
+		return; 	// 如果差值为负，则不进行更新
 	rq->clock += delta;
 	update_rq_clock_task(rq, delta);
 }
@@ -3593,6 +3593,8 @@ prepare_task_switch(struct rq *rq, struct task_struct *prev,
  * past. prev == current is still correct but we need to recalculate this_rq
  * because prev may have moved to another CPU.
  */
+// 清理任务切换后的操作
+// prev == current is still correct
 static struct rq *finish_task_switch(struct task_struct *prev)
 	__releases(rq->lock)
 {

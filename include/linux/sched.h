@@ -856,8 +856,8 @@ struct task_struct {
 
 	struct restart_block		restart_block;
 
-	pid_t				pid;
-	pid_t				tgid;
+	pid_t				pid; 	 // 进程id
+	pid_t				tgid;	 // ⽤于标识线程所属的进程 pid
 
 #ifdef CONFIG_STACKPROTECTOR
 	/* Canary value for the -fstack-protector GCC feature: */
@@ -980,7 +980,7 @@ struct task_struct {
 	struct fs_struct		*fs;
 
 	/* Open file information: */
-	struct files_struct		*files;
+	struct files_struct		*files;  	// 进程打开的⽂件信息
 
 #ifdef CONFIG_IO_URING
 	struct io_uring_task		*io_uring;

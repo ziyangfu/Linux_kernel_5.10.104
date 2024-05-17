@@ -284,11 +284,15 @@ restart:
 	h = softirq_vec;
 
 	while ((softirq_bit = ffs(pending))) {
-		unsigned int vec_nr;
+		unsigned int vec_nr;  // 存储软中断向量号
 		int prev_count;
 
 		h += softirq_bit - 1;
-
+		/*
+		vec_nr对应于softirq_vec数组中的一个特定条目，该数组存储了指向软中断处理函数的指针。
+		通过计算vec_nr = h - softirq_vec;，代码确定了应该调用哪个软中断处理函数。
+		简而言之，vec_nr用于跟踪并调用正确的软中断处理逻辑
+		*/
 		vec_nr = h - softirq_vec;
 		prev_count = preempt_count();
 
