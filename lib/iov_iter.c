@@ -999,6 +999,7 @@ EXPORT_SYMBOL(iov_iter_zero);
 size_t iov_iter_copy_from_user_atomic(struct page *page,
 		struct iov_iter *i, unsigned long offset, size_t bytes)
 {
+	// 将缓存⻚临时映射到内核虚拟地址空间的临时映射区中
 	char *kaddr = kmap_atomic(page), *p = kaddr + offset;
 	if (unlikely(!page_copy_sane(page, offset, bytes))) {
 		kunmap_atomic(kaddr);
@@ -1009,12 +1010,14 @@ size_t iov_iter_copy_from_user_atomic(struct page *page,
 		WARN_ON(1);
 		return 0;
 	}
+	// 将⽤户缓存区中的待写⼊数据拷⻉到⽂件缓存⻚中
 	iterate_all_kinds(i, bytes, v,
 		copyin((p += v.iov_len) - v.iov_len, v.iov_base, v.iov_len),
 		memcpy_from_page((p += v.bv_len) - v.bv_len, v.bv_page,
 				 v.bv_offset, v.bv_len),
 		memcpy((p += v.iov_len) - v.iov_len, v.iov_base, v.iov_len)
 	)
+	// 解除内核虚拟地址空间与缓存⻚之间的临时映射，这⾥映射只是为了临时拷⻉数据⽤
 	kunmap_atomic(kaddr);
 	return bytes;
 }

@@ -1437,7 +1437,7 @@ trace_page_fault_entries(struct pt_regs *regs, unsigned long error_code,
 	else
 		trace_page_fault_kernel(address, regs, error_code);
 }
-
+// arm64是do_page_fault(，x86是handle_page_fault
 static __always_inline void
 handle_page_fault(struct pt_regs *regs, unsigned long error_code,
 			      unsigned long address)
