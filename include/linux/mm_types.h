@@ -68,8 +68,9 @@ struct mem_cgroup;
 #endif
 
 /**
+ * 封装了每⻚内存块的状态信息，⽐如：组织结构，使⽤信息，统计信息，以及与其他结构的关联映射信息等
  * slab:第一代小内存分配器
- * slub：原理与slab一致，slab改进版
+ * slub：原理与slab一致，slab改进版，目前主要使用版本
  * slob：针对嵌入式系统的小内存分配器
 */
 struct page {
@@ -89,7 +90,7 @@ struct page {
 			 * pgdat->lru_lock.  Sometimes used as a generic list
 			 * by the page owner.
 			 */
-			struct list_head lru;
+			struct list_head lru;  // 最少最近使用算法 链表
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
 			struct address_space *mapping;  
 			pgoff_t index;		/* Our offset within mapping. */
@@ -195,7 +196,6 @@ struct page {
 		};
 
 		/** @rcu_head: You can use this to free a page by RCU. */
-		// ��? slab ����Ҫ�ͷŻ��յĶ�������
 		struct rcu_head rcu_head;
 	};
 
@@ -204,7 +204,6 @@ struct page {
 		 * If the page can be mapped to userspace, encodes the number
 		 * of times this page is referenced by a page table.
 		 */
-		// ��?�� page ӳ���˶��ٸ����̵������ڴ�ռ䣬?�� page ���Ա��������ӳ��
 		atomic_t _mapcount;
 
 		/*
@@ -220,7 +219,6 @@ struct page {
 	};
 
 	/* Usage count. *DO NOT USE DIRECTLY*. See page_ref.h */
-	// �ں�����?������?�Ĵ�������?������?�Ļ�Ծ�̶ȡ�
 	atomic_t _refcount;
 
 #ifdef CONFIG_MEMCG
@@ -241,7 +239,7 @@ struct page {
 	 * WANT_PAGE_VIRTUAL in asm/page.h
 	 */
 #if defined(WANT_PAGE_VIRTUAL)
-	// �ڴ�?��Ӧ�������ڴ��ַ
+	
 	void *virtual;			/* Kernel virtual address (NULL if
 					   not kmapped, ie. highmem) */
 #endif /* WANT_PAGE_VIRTUAL */

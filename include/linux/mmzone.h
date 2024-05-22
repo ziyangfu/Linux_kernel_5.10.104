@@ -461,6 +461,10 @@ enum zone_type {
 #define ASYNC_AND_SYNC 2
 /**
  * 伙伴系统的核心数据结构
+ * \details
+ * 将这些频繁访问的字段信息归类为4 个部分，并通过 ZONE_PADDING 来分割。
+ * ⽬的是通过 ZONE_PADDING 来填充字节，将这四个部分，分别填充到不同的 CPU ⾼速
+ * 缓存⾏（cache line）中，使得它们各⾃独占 cache line，提⾼访问性能
 */
 struct zone {
 	/* Read-mostly fields */
@@ -561,7 +565,7 @@ struct zone {
 	int initialized;
 
 	/* Write-intensive fields used from the page allocator */
-	ZONE_PADDING(_pad1_)
+	ZONE_PADDING(_pad1_)   // 隔开
 
 	/* free areas of different sizes */
 	// 伙伴系统的核⼼数据结构， MAX_ORDER == 11， 物理内存页在物理上连续，分配阶 order = MAX_ORDER - 1 
@@ -616,6 +620,7 @@ struct zone {
 
 	ZONE_PADDING(_pad3_)
 	/* Zone statistics */
+	// 该内存区域内存使⽤的统计信息
 	atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS];
 	atomic_long_t		vm_numa_stat[NR_VM_NUMA_STAT_ITEMS];
 } ____cacheline_internodealigned_in_smp;
@@ -748,7 +753,7 @@ struct deferred_split {
  * Memory statistics and page replacement data structures are maintained on a
  * per-zone basis.
  */
-// 对于NUMA架构，该结构体有多个， 对于UMA架构，则只有一个
+// 对于NUMA架构，该结构体有多个， 对于UMA架构，则只有一个 （node节点）
 typedef struct pglist_data {
 	/*
 	 * node_zones contains just the zones for THIS node. Not all of the
@@ -767,7 +772,7 @@ typedef struct pglist_data {
 	struct zonelist node_zonelists[MAX_ZONELISTS];
 	// NUMA 节点中的物理内存区域个数
 	int nr_zones; /* number of populated zones in this node */
-#ifdef CONFIG_FLAT_NODE_MEM_MAP	/* means !SPARSEMEM */
+#ifdef CONFIG_FLAT_NODE_MEM_MAP	/* means !SPARSEMEM  非稀疏内存模型 */
 	struct page *node_mem_map;
 #ifdef CONFIG_PAGE_EXTENSION
 	struct page_ext *node_page_ext;
@@ -786,15 +791,20 @@ typedef struct pglist_data {
 	 *
 	 * Nests above zone->lock and zone->span_seqlock
 	 */
-	spinlock_t node_size_lock;
+	spinlock_t node_size_lock; // 保证多进程可以并发安全的访问 NUMA 节点
 #endif
+	// NUMA 节点内第⼀个物理⻚的 pfn
 	unsigned long node_start_pfn;
+	// NUMA 节点内所有可⽤的物理⻚个数（不包含内存空洞）
 	unsigned long node_present_pages; /* total number of physical pages */
+	// NUMA 节点内所有的物理⻚个数（包含内存空洞）
 	unsigned long node_spanned_pages; /* total size of physical page
 					     range, including holes */
-	int node_id;
+	int node_id; 	// NUMA 节点id
+	// ⽤于 kswapd 进程周期性回收⻚⾯时使⽤到的等待队列
 	wait_queue_head_t kswapd_wait;
 	wait_queue_head_t pfmemalloc_wait;
+	// ⻚⾯回收进程，每个NUMA节点一个
 	struct task_struct *kswapd;	/* Protected by
 					   mem_hotplug_begin/end() */
 	int kswapd_order;
@@ -805,8 +815,10 @@ typedef struct pglist_data {
 #ifdef CONFIG_COMPACTION
 	int kcompactd_max_order;
 	enum zone_type kcompactd_highest_zoneidx;
+	// ⽤于 kcompactd 进程周期性规整内存时使⽤到的等待队列
 	wait_queue_head_t kcompactd_wait;
-	struct task_struct *kcompactd;
+	// 内存规整进程，每个NUMA节点一个
+	struct task_struct *kcompactd;   
 #endif
 	/*
 	 * This is a per-node reserve of pages that are not available
@@ -1247,6 +1259,7 @@ void subsection_map_init(unsigned long pfn, unsigned long nr_pages);
 
 struct page;
 struct page_ext;
+// 表⽰ SPARSEMEM 稀疏模型中的 section
 struct mem_section {
 	/*
 	 * This is, logically, a pointer to an array of struct

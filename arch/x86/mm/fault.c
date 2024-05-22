@@ -1472,7 +1472,7 @@ DEFINE_IDTENTRY_RAW_ERRORCODE(exc_page_fault)
 {
 	unsigned long address = read_cr2();
 	irqentry_state_t state;
-
+	// 内核这⾥将 mmap_lock 预取到 cacheline 中，并标记为独占状态（ MESI 协议中的 X 状态
 	prefetchw(&current->mm->mmap_lock);
 
 	/*
