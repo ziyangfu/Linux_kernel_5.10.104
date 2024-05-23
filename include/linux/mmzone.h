@@ -111,7 +111,7 @@ extern int page_group_by_mobility_disabled;
 struct free_area {
 	// 有多个双向循环链表
 	// 从 MIGRATE_TYPES 的字⾯意思上可以看出，内核会根据物理内存⻚的迁移类型将这些相同尺⼨的内存块
-	// 近⼀步通过不同的双向链表重新组织起来
+	// 进⼀步通过不同的双向链表重新组织起来
 	struct list_head	free_list[MIGRATE_TYPES];
 	unsigned long		nr_free;  // 该尺⼨的内存块在当前伙伴系统中的个数，注意是空闲内存块数量
 };
@@ -474,7 +474,7 @@ struct zone {
 	unsigned long _watermark[NR_WMARK];
 	// 优化内存碎⽚对内存分配的影响，可以动态改变内存区域的基准⽔位线
 	unsigned long watermark_boost;
-
+	// 是该内存区域内预留内存的⼤⼩，范围为 128 到 65536KB 之间
 	unsigned long nr_reserved_highatomic;
 
 	/*
@@ -486,6 +486,8 @@ struct zone {
 	 * recalculated at runtime if the sysctl_lowmem_reserve_ratio sysctl
 	 * changes.
 	 */
+	// ⽤于规定每个内存区域必须为⾃⼰保留的物理⻚数量，防⽌更⾼位的内存区域
+	// 对⾃⼰的内存空间进⾏过多的侵占挤压
 	long lowmem_reserve[MAX_NR_ZONES];
 
 #ifdef CONFIG_NEED_MULTIPLE_NODES

@@ -72,6 +72,8 @@ struct mem_cgroup;
  * slab:第一代小内存分配器
  * slub：原理与slab一致，slab改进版，目前主要使用版本
  * slob：针对嵌入式系统的小内存分配器
+ * \details
+ * 利⽤ union 尽最⼤可能使 struct page 的内存占⽤保持在⼀个较低的⽔平
 */
 struct page {
 	// 对于复合页来说，首页 page 中的 flags 会被设置为 PG_head 表示复合页的第一页
@@ -90,9 +92,15 @@ struct page {
 			 * pgdat->lru_lock.  Sometimes used as a generic list
 			 * by the page owner.
 			 */
+			// ⽤来指向物理⻚ page 被放置在了哪个 lru 链表上
 			struct list_head lru;  // 最少最近使用算法 链表
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
+			// mapping指针的最低位有特殊意义
+			// 如果 page 为⽂件⻚的话，低位为0，指向 page 所在的 page cache
+			// 如果 page 为匿名⻚的话，低位为1，指向其对应虚拟地址空间的匿名映射区 anon_vma
 			struct address_space *mapping;  
+			// 如果 page 为⽂件⻚的话，index 为 page 在 page cache 中的索引
+			// 如果 page 为匿名⻚的话，表⽰匿名⻚在对应进程虚拟内存区域 VMA 中的偏移
 			pgoff_t index;		/* Our offset within mapping. */
 			/**
 			 * @private: Mapping-private opaque data.
@@ -100,6 +108,7 @@ struct page {
 			 * Used for swp_entry_t if PageSwapCache.
 			 * Indicates order in the buddy system if PageBuddy.
 			 */
+			// 在不同场景下，private 指向的场景信息不同
 			unsigned long private;
 		};
 		struct {	/* page_pool used by netstack */
@@ -111,6 +120,7 @@ struct page {
 		};
 		struct {	/* slab, slob and slub */
 			union {
+				// ⽤于指定当前 page 位于 slab 中的哪个具体管理链表上
 				struct list_head slab_list; // slab 所在的管理链表
 				struct {	/* Partial pages */
 					struct page *next;  // ⽤ next 指针在相应管理链表中串联起 slab
@@ -129,13 +139,14 @@ struct page {
 			// 这多个 slab 被 slab cache 管理在了不同的链表上
 			struct kmem_cache *slab_cache; /* not slob */
 			/* Double-word boundary */
-			// 指向 slab 中第⼀个空闲对象
+			// 指向 slab 中第⼀个未分配的空闲对象
 			void *freelist;		/* first free object */
 			union {
+				// 指向 page 中的第⼀个对象
 				void *s_mem;	/* slab: first object */
 				unsigned long counters;		/* SLUB */
 				struct {			/* SLUB */  // 总计4字节
-					// slab 中已经分配出去的独享
+					// slab 中已经分配出去的对象个数
 					unsigned inuse:16;
 					// slab 中包含的对象总数
 					unsigned objects:15;
@@ -196,6 +207,7 @@ struct page {
 		};
 
 		/** @rcu_head: You can use this to free a page by RCU. */
+		// 表⽰ slab 中需要释放回收的对象链表
 		struct rcu_head rcu_head;
 	};
 
@@ -204,6 +216,7 @@ struct page {
 		 * If the page can be mapped to userspace, encodes the number
 		 * of times this page is referenced by a page table.
 		 */
+		// 表⽰该 page 映射了多少个进程的虚拟内存空间，⼀个 page 可以被多个进程映射
 		atomic_t _mapcount;
 
 		/*
@@ -219,6 +232,7 @@ struct page {
 	};
 
 	/* Usage count. *DO NOT USE DIRECTLY*. See page_ref.h */
+	// 内核中引⽤该物理⻚的次数，表⽰该物理⻚的活跃程度
 	atomic_t _refcount;
 
 #ifdef CONFIG_MEMCG
@@ -239,7 +253,7 @@ struct page {
 	 * WANT_PAGE_VIRTUAL in asm/page.h
 	 */
 #if defined(WANT_PAGE_VIRTUAL)
-	
+	// 内存⻚对应的虚拟内存地址
 	void *virtual;			/* Kernel virtual address (NULL if
 					   not kmapped, ie. highmem) */
 #endif /* WANT_PAGE_VIRTUAL */

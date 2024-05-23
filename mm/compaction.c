@@ -2799,6 +2799,7 @@ void wakeup_kcompactd(pg_data_t *pgdat, int order, int highest_zoneidx)
  * The background compaction daemon, started as a kernel thread
  * from the init process.
  */
+// 内存规整线程
 static int kcompactd(void *p)
 {
 	pg_data_t *pgdat = (pg_data_t*)p;

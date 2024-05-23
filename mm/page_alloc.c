@@ -4309,13 +4309,13 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 	struct page *page = NULL;
 	unsigned long pflags;
 	unsigned int noreclaim_flag;
-
+	// order为0情况，不用进行内存规整
 	if (!order)
 		return NULL;
 
 	psi_memstall_enter(&pflags);
 	noreclaim_flag = memalloc_noreclaim_save();
-
+	// 进行内存规整，当前进程会置PF_MEMALLOC，避免进程迁移时发生死锁
 	*compact_result = try_to_compact_pages(gfp_mask, order, alloc_flags, ac,
 								prio, &page);
 
@@ -4333,6 +4333,7 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 		prep_new_page(page, order, gfp_mask, alloc_flags);
 
 	/* Try get a page from the freelist if available */
+	// 进行内存分配
 	if (!page)
 		page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
 
@@ -8153,10 +8154,12 @@ static void setup_per_zone_lowmem_reserve(void)
 	/* update totalreserve_pages */
 	calculate_totalreserve_pages();
 }
-
+// 物理内存区域内的三条⽔位线：WMARK_MIN，WMARK_LOW，WMARK_HIGH 的最终计算
 static void __setup_per_zone_wmarks(void)
 {
+	// 将 min_free_kbytes 转换为⻚
 	unsigned long pages_min = min_free_kbytes >> (PAGE_SHIFT - 10);
+	// 所有低位内存区域 managed_pages 之和
 	unsigned long lowmem_pages = 0;
 	struct zone *zone;
 	unsigned long flags;
@@ -8166,12 +8169,13 @@ static void __setup_per_zone_wmarks(void)
 		if (!is_highmem(zone))
 			lowmem_pages += zone_managed_pages(zone);
 	}
-
+	// 循环计算各个内存区域中的⽔位线
 	for_each_zone(zone) {
 		u64 tmp;
 
 		spin_lock_irqsave(&zone->lock, flags);
 		tmp = (u64)pages_min * zone_managed_pages(zone);
+		// 计算 WMARK_MIN ⽔位线的核⼼⽅法
 		do_div(tmp, lowmem_pages);
 		if (is_highmem(zone)) {
 			/*
@@ -8193,6 +8197,7 @@ static void __setup_per_zone_wmarks(void)
 			 * If it's a lowmem zone, reserve a number of pages
 			 * proportionate to the zone's size.
 			 */
+			// WMARK_MIN⽔位线
 			zone->_watermark[WMARK_MIN] = tmp;
 		}
 

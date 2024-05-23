@@ -2,7 +2,7 @@
 #ifndef _LINUX_RMAP_H
 #define _LINUX_RMAP_H
 /*
- * Declarations for Reverse Mapping functions in mm/rmap.c
+ * Declarations for Reverse Mapping【反向映射】 functions in mm/rmap.c
  */
 
 #include <linux/list.h>
@@ -29,7 +29,7 @@
 
 /**
  * 谢宝友 Linux2.6注释版，拷贝过来如下：
- * 用于共享匿名页的反射映射。
+ * 用于共享匿名页的反射映射（反向映射）。
  *		当创建新进程时，父进程的所有页框，包含匿名页，都同时分配给子进程。
  *		当进程创建线性区时，如果指定了MAP_ANONYMOUS和MAP_SHARED，则这个区域内的页将由该进程后面的子进程共享。
  * 当内核为一个匿名线性区分配第一页时，内核创建一个新的anon_vma数据结构。

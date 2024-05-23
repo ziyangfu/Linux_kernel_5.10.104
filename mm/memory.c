@@ -4392,11 +4392,13 @@ static vm_fault_t wp_huge_pud(struct vm_fault *vmf, pud_t orig_pud)
  * The mmap_lock may have been released depending on flags and our return value.
  * See filemap_fault() and __lock_page_or_retry().
  */
+// 用于处理页表项PTE异常
 static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 {
 	pte_t entry;
 
-	if (unlikely(pmd_none(*vmf->pmd))) {
+	if (unlikely(pmd_none(*vmf->pmd)))   // 判断页中间目录（PMD）是否为空，若空，则不分配PTE
+	{
 		/*
 		 * Leave __pte_alloc() until later: because vm_ops->fault may
 		 * want to allocate huge page, and if we expose page table
@@ -4404,7 +4406,9 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		 * concurrent faults and from rmap lookups.
 		 */
 		vmf->pte = NULL;
-	} else {
+	}
+	else
+	{
 		/* See comment in pte_alloc_one_map() */
 		if (pmd_devmap_trans_unstable(vmf->pmd))
 			return 0;
@@ -4426,21 +4430,23 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		 * ptl lock held. So here a barrier will do.
 		 */
 		barrier();
-		if (pte_none(vmf->orig_pte)) {
+		if (pte_none(vmf->orig_pte))
+		{
 			pte_unmap(vmf->pte);
 			vmf->pte = NULL;
 		}
 	}
 
-	if (!vmf->pte) {
+	if (!vmf->pte)
+	{
 		if (vma_is_anonymous(vmf->vma))
-			return do_anonymous_page(vmf);
+			return do_anonymous_page(vmf);  // 处理匿名⻚缺⻚
 		else
-			return do_fault(vmf);
+			return do_fault(vmf);   // 处理⽂件⻚缺⻚
 	}
 
 	if (!pte_present(vmf->orig_pte))
-		return do_swap_page(vmf);
+		return do_swap_page(vmf);   // ⼦进程缺⻚处理
 
 	if (pte_protnone(vmf->orig_pte) && vma_is_accessible(vmf->vma))
 		return do_numa_page(vmf);
@@ -4448,20 +4454,25 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 	vmf->ptl = pte_lockptr(vmf->vma->vm_mm, vmf->pmd);
 	spin_lock(vmf->ptl);
 	entry = vmf->orig_pte;
-	if (unlikely(!pte_same(*vmf->pte, entry))) {
+	if (unlikely(!pte_same(*vmf->pte, entry)))
+	{
 		update_mmu_tlb(vmf->vma, vmf->address, vmf->pte);
 		goto unlock;
 	}
-	if (vmf->flags & FAULT_FLAG_WRITE) {
+	if (vmf->flags & FAULT_FLAG_WRITE)
+	{
 		if (!pte_write(entry))
 			return do_wp_page(vmf);
 		entry = pte_mkdirty(entry);
 	}
 	entry = pte_mkyoung(entry);
 	if (ptep_set_access_flags(vmf->vma, vmf->address, vmf->pte, entry,
-				vmf->flags & FAULT_FLAG_WRITE)) {
+							  vmf->flags & FAULT_FLAG_WRITE))
+	{
 		update_mmu_cache(vmf->vma, vmf->address, vmf->pte);
-	} else {
+	}
+	else
+	{
 		/* Skip spurious TLB flush for retried page fault */
 		if (vmf->flags & FAULT_FLAG_TRIED)
 			goto unlock;
