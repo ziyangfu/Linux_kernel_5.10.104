@@ -26,9 +26,11 @@
  * Since there is only one init_mm in the entire system, keep it simple
  * and size this cpu_bitmask to NR_CPUS.
  */
+// 内核主⻚表在系统初始化的时候被⼀段汇编代码 arch\x86\kernel\head_64.S 所创建。
+// 后续在系统启动函数 start_kernel 中调⽤ setup_arch 进⾏初始化
 struct mm_struct init_mm = {
 	.mm_rb		= RB_ROOT,
-	.pgd		= swapper_pg_dir,
+	.pgd		= swapper_pg_dir,   // 内核主⻚表
 	.mm_users	= ATOMIC_INIT(2),
 	.mm_count	= ATOMIC_INIT(1),
 	.write_protect_seq = SEQCNT_ZERO(init_mm.write_protect_seq),

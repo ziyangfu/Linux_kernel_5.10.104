@@ -1930,7 +1930,7 @@ static inline ssize_t call_write_iter(struct file *file, struct kiocb *kio,
 
 static inline int call_mmap(struct file *file, struct vm_area_struct *vma)
 {
-	return file->f_op->mmap(file, vma);
+	return file->f_op->mmap(file, vma); // 各个文件系统实现自己的mmap
 }
 
 extern ssize_t vfs_read(struct file *, char __user *, size_t, loff_t *);

@@ -628,9 +628,10 @@ static inline void vma_init(struct vm_area_struct *vma, struct mm_struct *mm)
 
 static inline void vma_set_anonymous(struct vm_area_struct *vma)
 {
-	vma->vm_ops = NULL;
+	vma->vm_ops = NULL;  // 处理匿名映射，只有文件映射才需要vm_ops，将内存与⽂件映射起来
 }
-
+// 判断⼀个虚拟内存区域 vma 到底是⽂件映射区还是匿名映射区就是要看这个 vma 的
+// vm_ops 是否为 null
 static inline bool vma_is_anonymous(struct vm_area_struct *vma)
 {
 	return !vma->vm_ops;

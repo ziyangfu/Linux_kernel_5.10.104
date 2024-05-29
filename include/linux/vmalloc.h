@@ -47,23 +47,37 @@ struct notifier_block;		/* in notifier.h */
 #ifndef IOREMAP_MAX_ORDER
 #define IOREMAP_MAX_ORDER	(7 + PAGE_SHIFT)	/* 128 pages */
 #endif
-
+// ⽤来描述 vmalloc 区
 struct vm_struct {
+	// vmalloc 动态映射区中的所有虚拟内存区域也都是被⼀个单向链表所串联
 	struct vm_struct	*next;
+	// vmalloc 区的起始内存地址
 	void			*addr;
+	// vmalloc 区的⼤⼩
 	unsigned long		size;
+	// vmalloc 区的相关标记
+	// VM_ALLOC 表⽰该区域是由 vmalloc 函数映射出来的
+	// VM_MAP 表⽰该区域是由 vmap 函数映射出来的
+	// VM_IOREMAP 表⽰该区域是由 ioremap 函数将硬件设备的内存映射过来的
 	unsigned long		flags;
+	// struct page 结构的数组指针，数组中的每⼀项指向该虚拟内存区域背后映射的物理内存⻚
 	struct page		**pages;
+	// 该虚拟内存区域包含的物理内存⻚个数
 	unsigned int		nr_pages;
+	// ioremap 映射硬件设备物理内存的时候填充
 	phys_addr_t		phys_addr;
+	// 调⽤者的返回地址（这⾥可忽略）
 	const void		*caller;
 };
-
+// 为了提⾼查找效率引⼊了红⿊树以及双向链表来重新组织这些 vmalloc 区域
+// 内核空间是所有进程共享的，所以组织内核空间虚拟内存区域的红⿊树以及双向链表是全局的
 struct vmap_area {
+	// vmalloc 区的起始内存地址
 	unsigned long va_start;
-	unsigned long va_end;
-
+	unsigned long va_end; // vmalloc 区的结束内存地址
+	// vmalloc 区所在红⿊树中的节点
 	struct rb_node rb_node;         /* address sorted rbtree */
+	// vmalloc 区所在双向链表中的节点
 	struct list_head list;          /* address sorted list */
 
 	/*
@@ -75,6 +89,7 @@ struct vmap_area {
 	 */
 	union {
 		unsigned long subtree_max_size; /* in "free" tree */
+		// ⽤于关联 vm_struct 结构
 		struct vm_struct *vm;           /* in "busy" tree */
 		struct llist_node purge_list;   /* in purge list */
 	};

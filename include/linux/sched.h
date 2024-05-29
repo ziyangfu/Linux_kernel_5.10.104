@@ -931,7 +931,9 @@ struct task_struct {
 	u64				start_boottime;
 
 	/* MM fault and swap info: this can arguably be seen as either mm-specific or thread-specific: */
+	// 进程总共发⽣的 VM_FAULT_MINOR 次数
 	unsigned long			min_flt;
+	// 进程总共发⽣的 VM_FAULT_MAJOR 次数
 	unsigned long			maj_flt;
 
 	/* Empty if CONFIG_POSIX_CPUTIMERS=n */

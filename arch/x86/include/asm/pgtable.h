@@ -898,6 +898,7 @@ static inline int pud_large(pud_t pud)
 #if CONFIG_PGTABLE_LEVELS > 3
 static inline int p4d_none(p4d_t p4d)
 {
+	// p4d_t 中除了第 5，6 ⽐特位之外，剩余⽐特位如果全是 0 则表⽰ p4d_t 是空的
 	return (native_p4d_val(p4d) & ~(_PAGE_KNL_ERRATUM_MASK)) == 0;
 }
 

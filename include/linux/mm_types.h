@@ -814,7 +814,7 @@ typedef __bitwise unsigned int vm_fault_t;
  *
  * @VM_FAULT_OOM:		Out Of Memory
  * @VM_FAULT_SIGBUS:		Bad access
- * @VM_FAULT_MAJOR:		Page read from storage
+ * @VM_FAULT_MAJOR:		Page read from storage, 还不在内存中，要 swap in 进来
  * @VM_FAULT_WRITE:		Special case for get_user_pages
  * @VM_FAULT_HWPOISON:		Hit poisoned small page
  * @VM_FAULT_HWPOISON_LARGE:	Hit poisoned large page. Index encoded

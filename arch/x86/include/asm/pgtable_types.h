@@ -74,7 +74,7 @@
 			 _PAGE_PKEY_BIT3)
 
 #if defined(CONFIG_X86_64) || defined(CONFIG_X86_PAE)
-#define _PAGE_KNL_ERRATUM_MASK (_PAGE_DIRTY | _PAGE_ACCESSED)
+#define _PAGE_KNL_ERRATUM_MASK (_PAGE_DIRTY | _PAGE_ACCESSED) // ⻚⽬录项中第 5, 6 ⽐特位置为 1
 #else
 #define _PAGE_KNL_ERRATUM_MASK 0
 #endif

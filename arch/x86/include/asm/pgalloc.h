@@ -114,6 +114,8 @@ static inline void pud_populate_safe(struct mm_struct *mm, pud_t *pud, pmd_t *pm
 #if CONFIG_PGTABLE_LEVELS > 3
 static inline void p4d_populate(struct mm_struct *mm, p4d_t *p4d, pud_t *pud)
 {
+	// 通过 __pa(pud) 来获取 PUD 的起始物理内存地址，然后将 PUD 的物理内存地址填充
+	// 到顶级⻚⽬录项 p4d 中的对应⽐特位上
 	paravirt_alloc_pud(mm, __pa(pud) >> PAGE_SHIFT);
 	set_p4d(p4d, __p4d(_PAGE_TABLE | __pa(pud)));
 }

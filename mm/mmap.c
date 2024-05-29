@@ -1816,7 +1816,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	vma->vm_flags = vm_flags;
 	vma->vm_page_prot = vm_get_page_prot(vm_flags);
 	vma->vm_pgoff = pgoff;
-
+	// ⽂件映射
 	if (file) {
 		if (vm_flags & VM_DENYWRITE) {
 			error = deny_write_access(file);
@@ -1834,7 +1834,11 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		 * and map writably if VM_SHARED is set. This usually means the
 		 * new file must not have been exposed to user-space, yet.
 		 */
+		// 将⽂件与虚拟内存映射起来
 		vma->vm_file = get_file(file);
+		// 这⼀步中将虚拟内存区域 vma 的操作函数 vm_ops 映射成⽂件的操作函数（和具体⽂件系统有关）
+		// ext4 ⽂件系统中的操作函数为 ext4_file_vm_ops
+		// 从这⼀刻开始，读写内存就和读写⽂件是⼀样的了
 		error = call_mmap(file, vma);
 		if (error)
 			goto unmap_and_free_vma;
@@ -1876,6 +1880,12 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		if (error)
 			goto free_vma;
 	} else {
+		// 这⾥处理私有匿名映射
+		// 将 vma->vm_ops 设置为 null，只有⽂件映射才需要 vm_ops 这样
+		// 才能将内存与⽂件映射起来
+		
+		// 判断⼀个虚拟内存区域 vma 到底是⽂件映射区还是匿名映射区就是要看这个 vma 的
+		// vm_ops 是否为 null
 		vma_set_anonymous(vma);
 	}
 

@@ -2457,24 +2457,29 @@ void *vmap_pfn(unsigned long *pfns, unsigned int count, pgprot_t prot)
 }
 EXPORT_SYMBOL_GPL(vmap_pfn);
 #endif /* CONFIG_VMAP_PFN */
-
+//  vmalloc 区分配物理内存的过程
 static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 				 pgprot_t prot, int node)
 {
 	const gfp_t nested_gfp = (gfp_mask & GFP_RECLAIM_MASK) | __GFP_ZERO;
+	// 计算 vmalloc 区所需要的虚拟内存⻚个数
 	unsigned int nr_pages = get_vm_area_size(area) >> PAGE_SHIFT;
+	// vm_struct 结构中的 pages 数组⼤⼩，⽤于存放指向每个物理内存⻚的指针
 	unsigned int array_size = nr_pages * sizeof(struct page *), i;
-	struct page **pages;
+	struct page **pages;  // 指向即将为 vmalloc 区分配的物理内存⻚
 
 	gfp_mask |= __GFP_NOWARN;
 	if (!(gfp_mask & (GFP_DMA | GFP_DMA32)))
 		gfp_mask |= __GFP_HIGHMEM;
 
 	/* Please note that the recursion is strictly bounded. */
+	// ⾸先要为 pages 数组分配内存
 	if (array_size > PAGE_SIZE) {
+		// array_size 超过 PAGE_SIZE ⼤⼩则递归调⽤ vmalloc 分配数组所需内存
 		pages = __vmalloc_node(array_size, 1, nested_gfp, node,
 					area->caller);
 	} else {
+		// 直接调⽤ kmalloc 分配数组所需内存
 		pages = kmalloc_node(array_size, nested_gfp, node);
 	}
 
@@ -2483,16 +2488,16 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 		kfree(area);
 		return NULL;
 	}
-
+	// 初始化 vm_struct
 	area->pages = pages;
 	area->nr_pages = nr_pages;
-
+	// 依次为 vmalloc 区中包含的所有虚拟内存⻚分配物理内存
 	for (i = 0; i < area->nr_pages; i++) {
 		struct page *page;
-
+		// 如果没有特殊指定 numa node，则从当前 numa node 中分配物理内存⻚
 		if (node == NUMA_NO_NODE)
 			page = alloc_page(gfp_mask);
-		else
+		else // 否则就从指定的 numa node 中分配物理内存⻚
 			page = alloc_pages_node(node, gfp_mask, 0);
 
 		if (unlikely(!page)) {
@@ -2501,16 +2506,17 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 			atomic_long_add(area->nr_pages, &nr_vmalloc_pages);
 			goto fail;
 		}
+		// 将分配的物理内存⻚依次存放到 vm_struct 结构中的 pages 数组中
 		area->pages[i] = page;
 		if (gfpflags_allow_blocking(gfp_mask))
 			cond_resched();
 	}
 	atomic_long_add(area->nr_pages, &nr_vmalloc_pages);
-
+	// 修改内核主⻚表，将刚刚分配出来的所有物理内存⻚与 vmalloc 虚拟内存区域进⾏映射
 	if (map_kernel_range((unsigned long)area->addr, get_vm_area_size(area),
 			prot, pages) < 0)
 		goto fail;
-
+	// 返回 vmalloc 虚拟内存区域起始地址
 	return area->addr;
 
 fail:
@@ -2539,24 +2545,31 @@ fail:
  *
  * Return: the address of the area or %NULL on failure
  */
+// 分配虚拟连续内存，注意，虚拟内存连续，物理内存不一定连续
 void *__vmalloc_node_range(unsigned long size, unsigned long align,
 			unsigned long start, unsigned long end, gfp_t gfp_mask,
 			pgprot_t prot, unsigned long vm_flags, int node,
 			const void *caller)
 {
+	// ⽤于描述 vmalloc 虚拟内存区域的数据结构，同 mmap 中的 vma 结构很相似
 	struct vm_struct *area;
+	// vmalloc 虚拟内存区域的起始地址
 	void *addr;
 	unsigned long real_size = size;
-
+	// size 为要申请的 vmalloc 虚拟内存区域⼤⼩，这⾥需要按⻚对⻬
 	size = PAGE_ALIGN(size);
+	// 因为在分配完 vmalloc 区之后，⻢上就会为其分配物理内存
+	// 所以这⾥需要检查 size ⼤⼩不能超过当前系统中的空闲物理内存
 	if (!size || (size >> PAGE_SHIFT) > totalram_pages())
 		goto fail;
-
+	// 在内核空间的 vmalloc 动态映射区中，划分出⼀段空闲的虚拟内存区域 vmalloc 区出来
+	// 这⾥虚拟内存的分配过程和 mmap 在⽤户态⽂件与匿名映射区分配虚拟内存的过程⾮常相似
 	area = __get_vm_area_node(real_size, align, VM_ALLOC | VM_UNINITIALIZED |
 				vm_flags, start, end, node, gfp_mask, caller);
 	if (!area)
 		goto fail;
-
+	// 为 vmalloc 虚拟内存区域中的每⼀个虚拟内存⻚分配物理内存⻚
+	// 并在内核⻚表中将 vmalloc 区与物理内存映射起来
 	addr = __vmalloc_area_node(area, gfp_mask, prot, node);
 	if (!addr)
 		return NULL;

@@ -232,6 +232,7 @@ static noinline int vmalloc_fault(unsigned long address)
 	pte_t *pte_k;
 
 	/* Make sure we are in vmalloc area: */
+	// 确保缺⻚发⽣在内核 vmalloc 动态映射区
 	if (!(address >= VMALLOC_START && address < VMALLOC_END))
 		return -1;
 
@@ -242,14 +243,16 @@ static noinline int vmalloc_fault(unsigned long address)
 	 * Do _not_ use "current" here. We might be inside
 	 * an interrupt in the middle of a task switch..
 	 */
+	// 从CR3寄存器中获取页全局目录地址
 	pgd_paddr = read_cr3_pa();
+	// 获取页中间目录
 	pmd_k = vmalloc_sync_one(__va(pgd_paddr), address);
 	if (!pmd_k)
 		return -1;
 
 	if (pmd_large(*pmd_k))
 		return 0;
-
+	// 获取页表
 	pte_k = pte_offset_kernel(pmd_k, address);
 	if (!pte_present(*pte_k))
 		return -1;
@@ -1354,18 +1357,22 @@ retry:
 		 */
 		might_sleep();
 	}
-
+	// 在进程虚拟地址空间查找第⼀个符合条件：address < vma->vm_end 的虚拟内存区域 vma
 	vma = find_vma(mm, address);
+	// 如果该缺⻚地址 address 后⾯没有 vma 跳转到 bad_area 处理异常
 	if (unlikely(!vma)) {
 		bad_area(regs, hw_error_code, address);
 		return;
 	}
+	// 缺⻚地址 address 恰好落在⼀个 vma 中，跳转到 good_area 处理 vma 中的缺⻚
 	if (likely(vma->vm_start <= address))
 		goto good_area;
+	// 上⾯第三种情况，vma 不是栈区，跳转到 bad_area
 	if (unlikely(!(vma->vm_flags & VM_GROWSDOWN))) {
 		bad_area(regs, hw_error_code, address);
 		return;
 	}
+	// vma 是栈区，尝试扩展栈区到 address 地址处
 	if (unlikely(expand_stack(vma, address))) {
 		bad_area(regs, hw_error_code, address);
 		return;
@@ -1383,7 +1390,7 @@ good_area:
 
 	/*
 	 * If for any reason at all we couldn't handle the fault,
-	 * make sure we exit gracefully rather than endlessly redo
+	 * make sure we exit gracefully【优雅的】 rather than endlessly redo
 	 * the fault.  Since we never set FAULT_FLAG_RETRY_NOWAIT, if
 	 * we get VM_FAULT_RETRY back, the mmap_lock has been unlocked.
 	 *
@@ -1394,6 +1401,8 @@ good_area:
 	 * userland). The return to userland is identified whenever
 	 * FAULT_FLAG_USER|FAULT_FLAG_KILLABLE are both set in flags.
 	 */
+	// 处理 vma 区域的缺⻚异常，返回值 fault 是⼀个位图,通过这个位图可以简要描述⼀下在
+	// 整个缺⻚异常处理的过程中究竟发⽣了哪些状况，⽅便内核对各种状况进⾏针对性处理
 	fault = handle_mm_fault(vma, address, flags, regs);
 
 	/* Quick path to respond to signals */

@@ -852,6 +852,13 @@ copy_present_page(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma
  * Copy one pte.  Returns 0 if succeeded, or -EAGAIN if one preallocated page
  * is required to copy this pte.
  */
+/*
+即原来的 copy_one_pte
+写时复制（COW机制）
+⽗进程通过 fork 系统调⽤创建⼦进程之后，⽗⼦进程的虚拟内存空间完全是⼀模⼀样的，
+包括⽗⼦进程的⻚表内容都是⼀样的，⽗⼦进程⻚表中的 PTE 均指向同⼀物理内存⻚⾯，
+此时内核会将⽗⼦进程⻚表中的PTE 均改为只读的，并将⽗⼦进程共同映射的这个物理⻚⾯引⽤计数 + 1
+*/
 static inline int
 copy_present_pte(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma,
 		 pte_t *dst_pte, pte_t *src_pte, unsigned long addr, int *rss,
@@ -861,7 +868,7 @@ copy_present_pte(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma,
 	unsigned long vm_flags = src_vma->vm_flags;
 	pte_t pte = *src_pte;
 	struct page *page;
-
+	// 获取 pte 中映射的物理内存⻚（此时⽗⼦进程共享该⻚）
 	page = vm_normal_page(src_vma, addr, pte);
 	if (page) {
 		int retval;
@@ -870,7 +877,7 @@ copy_present_pte(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma,
 					   addr, rss, prealloc, pte, page);
 		if (retval <= 0)
 			return retval;
-
+		// 物理内存⻚的引⽤计数 + 1
 		get_page(page);
 		page_dup_rmap(page, false);
 		rss[mm_counter(page)]++;
@@ -881,7 +888,9 @@ copy_present_pte(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma,
 	 * in the parent and the child
 	 */
 	if (is_cow_mapping(vm_flags) && pte_write(pte)) {
+		// 设置⽗进程的 pte 为只读
 		ptep_set_wrprotect(src_mm, addr, src_pte);
+		// 设置⼦进程的 pte 为只读
 		pte = pte_wrprotect(pte);
 	}
 
@@ -3299,6 +3308,7 @@ EXPORT_SYMBOL(unmap_mapping_range);
  * We return with the mmap_lock locked or unlocked in the same cases
  * as does filemap_fault().
  */
+// 会将之前映射的物理内存⻚从磁盘中重新 swap in 到内存中
 vm_fault_t do_swap_page(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
@@ -4393,11 +4403,24 @@ static vm_fault_t wp_huge_pud(struct vm_fault *vmf, pud_t orig_pud)
  * See filemap_fault() and __lock_page_or_retry().
  */
 // 用于处理页表项PTE异常
+/*
+				pmd_none + pte_none
+						|		
+				|------------------------|
+		vma_is_anonymous				pte_present
+				|							|
+		|-----------------|			|-----------------|	
+do_annoymous_page		do_fault  do_swap_page        |
+											pte_protnone && vma_is_accessible
+													  |
+											|-----------------|	
+				(vma可写但pte只读，写时拷贝)do_wp_page		do_numa_page(NUMA均衡)												 
+*/
 static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 {
 	pte_t entry;
-
-	if (unlikely(pmd_none(*vmf->pmd)))   // 判断页中间目录（PMD）是否为空，若空，则不分配PTE
+	// 判断页中间目录（PMD）是否为空，若空，则不分配PTE
+	if (unlikely(pmd_none(*vmf->pmd)))   
 	{
 		/*
 		 * Leave __pte_alloc() until later: because vm_ops->fault may
@@ -4405,7 +4428,8 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		 * for an instant, it will be difficult to retract from
 		 * concurrent faults and from rmap lookups.
 		 */
-		vmf->pte = NULL;
+		// 如果 pmd 是空的，说明现在连⻚表都没有，⻚表项 pte ⾃然是空的
+		vmf->pte = NULL;  // 后面会直接去处理匿名页或者文件页
 	}
 	else
 	{
@@ -4418,7 +4442,11 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		 * mmap_lock read mode and khugepaged takes it in write mode.
 		 * So now it's safe to run pte_offset_map().
 		 */
+		// vmf->pte 表⽰缺⻚虚拟内存地址在⻚表中对应的⻚表项 pte
+		// 通过 pte_offset_map 定位到虚拟内存地址 address 对应在⻚表中的 pte
+		// 这⾥根据 address 获取 pte_index，然后从 pmd 中提取⻚表起始虚拟内存地址相加获取 pte
 		vmf->pte = pte_offset_map(vmf->pmd, vmf->address);
+		// vmf->orig_pte 表⽰发⽣缺⻚时，address 对应的 pte 值
 		vmf->orig_pte = *vmf->pte;
 
 		/*
@@ -4430,24 +4458,30 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		 * ptl lock held. So here a barrier will do.
 		 */
 		barrier();
+		// 这⾥ pmd 不是空的，表⽰现在是有⻚表存在的，但缺⻚虚拟内存地址在⻚表中的 pte 是空值
 		if (pte_none(vmf->orig_pte))
 		{
 			pte_unmap(vmf->pte);
 			vmf->pte = NULL;
 		}
 	}
-
+	// pte 是空的，表⽰缺⻚地址 address 还从来没有被映射过，接下来就要处理物理内存的映射
 	if (!vmf->pte)
 	{
+		// 判断缺⻚的虚拟内存地址 address 所在的虚拟内存区域 vma 是否是匿名映射区
 		if (vma_is_anonymous(vmf->vma))
 			return do_anonymous_page(vmf);  // 处理匿名⻚缺⻚
 		else
 			return do_fault(vmf);   // 处理⽂件⻚缺⻚
 	}
-
+// ⾛到这⾥表⽰ pte 不是空的，但是 pte 中的 p ⽐特位是 0 值，表⽰之前映射的物理内存⻚已不在内存中
 	if (!pte_present(vmf->orig_pte))
-		return do_swap_page(vmf);   // ⼦进程缺⻚处理
-
+		return do_swap_page(vmf);   // 物理页被swap到了磁盘上的缺⻚处理
+	// 这⾥表⽰ pte 背后映射的物理内存⻚在内存中，但是 NUMA Balancing 发现该内存⻚不在
+	//	  当前进程运⾏的 numa节点上，所以将该 pte 标记为 _PAGE_PROTNONE（⽆读写，可执⾏权限）
+	// 进程访问该内存⻚时发⽣缺⻚中断，在这⾥的 do_numa_page 中，内核将该 page 迁移
+	// 	  到进程运⾏的 numa 节点
+	// 在PC ubuntu上，默认是关闭的。cat /proc/sys/kernel/numa_balancing
 	if (pte_protnone(vmf->orig_pte) && vma_is_accessible(vmf->vma))
 		return do_numa_page(vmf);
 
@@ -4459,16 +4493,23 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		update_mmu_tlb(vmf->vma, vmf->address, vmf->pte);
 		goto unlock;
 	}
+	// 如果本次缺⻚中断是由写操作引起的 （与写时复制有关）
 	if (vmf->flags & FAULT_FLAG_WRITE)
 	{
+		// 这⾥说明 vma 是可写的，但是 pte 被标记为不可写，说明是写保护类型的中断
 		if (!pte_write(entry))
-			return do_wp_page(vmf);
+			return do_wp_page(vmf); // 进⾏写时复制处理，cow 就发⽣在这⾥
+		// 如果 pte 是可写的，就将 pte 标记为脏⻚
 		entry = pte_mkdirty(entry);
 	}
+	// 将 pte 的 access ⽐特位置 1 ，表⽰该 page 是活跃的。避免被 swap 出去
 	entry = pte_mkyoung(entry);
+	// 经过上⾯的缺⻚处理，这⾥会判断原来的⻚表项 entry（orig_pte） 值是否发⽣了变化
+	// 如果发⽣了变化，就把 entry 更新到 vmf->pte 中
 	if (ptep_set_access_flags(vmf->vma, vmf->address, vmf->pte, entry,
 							  vmf->flags & FAULT_FLAG_WRITE))
 	{
+		// pte 既然变化了，则刷新 mmu （体系结构相关）
 		update_mmu_cache(vmf->vma, vmf->address, vmf->pte);
 	}
 	else
@@ -4482,6 +4523,8 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		 * This still avoids useless tlb flushes for .text page faults
 		 * with threads.
 		 */
+		// 如果 pte 内容本⾝没有变化，则不需要刷新任何东⻄
+		// 但是有个特殊情况就是写保护类型中断，产⽣的写时复制，产⽣了新的映射关系，需要刷新⼀下 tlb
 		if (vmf->flags & FAULT_FLAG_WRITE)
 			flush_tlb_fix_spurious_fault(vmf->vma, vmf->address);
 	}
@@ -4499,24 +4542,33 @@ unlock:
 static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 		unsigned long address, unsigned int flags)
 {
+	// vm_fault 结构⽤于封装后续缺⻚处理⽤到的相关参数
 	struct vm_fault vmf = {
-		.vma = vma,
-		.address = address & PAGE_MASK,
-		.flags = flags,
+		.vma = vma, // 发⽣缺⻚的 vma
+		.address = address & PAGE_MASK,  // 引起缺⻚的虚拟内存地址
+		.flags = flags,  // 处理缺⻚的相关标记 FAULT_FLAG_xxx
+		// address 在 vma 中的偏移，单位也是⻚
 		.pgoff = linear_page_index(vma, address),
+		// 后续⽤于分配物理内存使⽤的相关掩码 gfp_mask
 		.gfp_mask = __get_fault_gfp_mask(vma),
 	};
 	unsigned int dirty = flags & FAULT_FLAG_WRITE;
+	// 获取进程虚拟内存空间
 	struct mm_struct *mm = vma->vm_mm;
+	// 进程⻚表的顶级⻚表地址
 	pgd_t *pgd;
+	// 五级⻚表下会使⽤，在四级⻚表下 p4d 与 pgd 的值⼀样
 	p4d_t *p4d;
 	vm_fault_t ret;
-
+	// 获取 address 在全局⻚⽬录表 PGD 中对应的⽬录项 pgd
 	pgd = pgd_offset(mm, address);
+	// 在四级⻚表下，这⾥只是将 pgd 赋值给 p4d，后续均已 p4d 作为全局⻚⽬录项
 	p4d = p4d_alloc(mm, pgd, address);
 	if (!p4d)
 		return VM_FAULT_OOM;
-
+	// ⾸先 p4d_none 判断全局⻚⽬录项 p4d 是否是空的
+	// 如果 p4d 是空的，则调⽤ __pud_alloc 分配⼀个新的上层⻚⽬录表 PUD，然后填充 p4d
+	// 如果 p4d 不是空的，则调⽤ pud_offset 获取 address 在上层⻚⽬录 PUD 中的⽬录项 pud
 	vmf.pud = pud_alloc(mm, p4d, address);
 	if (!vmf.pud)
 		return VM_FAULT_OOM;
@@ -4543,7 +4595,9 @@ retry_pud:
 			}
 		}
 	}
-
+	// ⾸先 pud_none 判断上层⻚⽬录项 pud 是不是空的
+	// 如果 pud 是空的，则调⽤ __pmd_alloc 分配⼀个新的中间⻚⽬录表 PMD，然后填充 pud
+	// 如果 pud 不是空的，则调⽤ pmd_offset 获取 address 在中间⻚⽬录 PMD 中的⽬录项 pmd
 	vmf.pmd = pmd_alloc(mm, vmf.pud, address);
 	if (!vmf.pmd)
 		return VM_FAULT_OOM;
@@ -4581,7 +4635,7 @@ retry_pud:
 			}
 		}
 	}
-
+	// 进⾏⻚表的相关处理以及解析具体的缺⻚原因，后续针对性的进⾏缺⻚处理
 	return handle_pte_fault(&vmf);
 }
 
@@ -4731,19 +4785,26 @@ int __p4d_alloc(struct mm_struct *mm, pgd_t *pgd, unsigned long address)
  */
 int __pud_alloc(struct mm_struct *mm, p4d_t *p4d, unsigned long address)
 {
+	// 调⽤ get_zeroed_page 申请⼀个 4k 物理内存⻚并初始化为 0 值作为新的 PUD
+	// new 指向新分配的 PUD 起始内存地址
 	pud_t *new = pud_alloc_one(mm, address);
 	if (!new)
 		return -ENOMEM;
 
 	smp_wmb(); /* See comment in __pte_alloc */
-
+	// 操作进程⻚表需要加锁
 	spin_lock(&mm->page_table_lock);
+	// 如果顶级⻚⽬录项 p4d 中的 P ⽐特位置为 0 表⽰ p4d ⽬前还没有指向其下⼀级⻚⽬录 PUD
+	// 下⾯需要填充 p4d
 	if (!p4d_present(*p4d)) {
+		// 更新 mm->pgtables_bytes 计数，该字段⽤于统计进程⻚表所占⽤的字节数
+		// 由于这⾥新增了⼀张 PUD ⽬录表，所以计数需要增加 PTRS_PER_PUD * sizeof(pud_t)
 		mm_inc_nr_puds(mm);
+		// 将 new 指向的新分配出来的 PUD 物理内存地址以及相关属性填充到顶级⻚⽬录项 p4d 中
 		p4d_populate(mm, p4d, new);
 	} else	/* Another has populated it */
 		pud_free(mm, new);
-	spin_unlock(&mm->page_table_lock);
+	spin_unlock(&mm->page_table_lock); // 释放⻚表锁
 	return 0;
 }
 #endif /* __PAGETABLE_PUD_FOLDED */
@@ -4756,6 +4817,7 @@ int __pud_alloc(struct mm_struct *mm, p4d_t *p4d, unsigned long address)
 int __pmd_alloc(struct mm_struct *mm, pud_t *pud, unsigned long address)
 {
 	spinlock_t *ptl;
+	// 调⽤ alloc_pages 从伙伴系统申请⼀个 4K ⼤⼩的物理内存⻚，作为新的 PMD
 	pmd_t *new = pmd_alloc_one(mm, address);
 	if (!new)
 		return -ENOMEM;
@@ -4763,8 +4825,10 @@ int __pmd_alloc(struct mm_struct *mm, pud_t *pud, unsigned long address)
 	smp_wmb(); /* See comment in __pte_alloc */
 
 	ptl = pud_lock(mm, pud);
+	// 如果 pud 还未指向其下⼀级⻚⽬录 PMD，则需要初始化填充 pud
 	if (!pud_present(*pud)) {
 		mm_inc_nr_pmds(mm);
+		// 将 new 指向的新分配出来的 PMD 物理内存地址以及相关属性填充到上层⻚⽬录项 pud 中
 		pud_populate(mm, pud, new);
 	} else	/* Another has populated it */
 		pmd_free(mm, new);

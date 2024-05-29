@@ -1036,6 +1036,7 @@ void page_move_anon_rmap(struct page *page, struct vm_area_struct *vma)
  * @address:	User virtual address of the mapping	
  * @exclusive:	the page is exclusively owned by the current process
  */
+//该函数用于设置新的匿名内存反向映射关系
 static void __page_set_anon_rmap(struct page *page,
 	struct vm_area_struct *vma, unsigned long address, int exclusive)
 {
@@ -1053,9 +1054,11 @@ static void __page_set_anon_rmap(struct page *page,
 	 */
 	if (!exclusive)
 		anon_vma = anon_vma->root;
-
+	// 低位置为 1，是匿名页反向映射
 	anon_vma = (void *) anon_vma + PAGE_MAPPING_ANON;
+	// 转换为 address_space 指针赋值给 page 结构中的 mapping 字段
 	page->mapping = (struct address_space *) anon_vma;
+	// page 结构中的 index 表⽰该匿名⻚在虚拟内存区域 vma 中的偏移
 	page->index = linear_page_index(vma, address);
 }
 

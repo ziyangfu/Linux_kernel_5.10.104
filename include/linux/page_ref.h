@@ -115,7 +115,7 @@ static inline void page_ref_inc(struct page *page)
 {
 	atomic_inc(&page->_refcount);
 	if (page_ref_tracepoint_active(page_ref_mod))
-		__page_ref_mod(page, 1);
+		__page_ref_mod(page, 1);  // 引用 + 1
 }
 
 static inline void page_ref_dec(struct page *page)
