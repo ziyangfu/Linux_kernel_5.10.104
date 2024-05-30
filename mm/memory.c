@@ -425,6 +425,8 @@ void free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *vma,
 int __pte_alloc(struct mm_struct *mm, pmd_t *pmd)
 {
 	spinlock_t *ptl;
+	// 调⽤ get_zeroed_page 申请⼀个 4k 物理内存⻚并初始化为 0 值作为新的 ⻚表
+	// new 指向新分配的 ⻚表 起始内存地址
 	pgtable_t new = pte_alloc_one(mm);
 	if (!new)
 		return -ENOMEM;
@@ -443,10 +445,14 @@ int __pte_alloc(struct mm_struct *mm, pmd_t *pmd)
 	 * smp_rmb() barriers in page table walking code.
 	 */
 	smp_wmb(); /* Could be smp_wmb__xxx(before|after)_spin_lock */
-
+	// 锁定中间⻚⽬录项 pmd
 	ptl = pmd_lock(mm, pmd);
+	// 如果 pmd 是空的，说明此时 pmd 并未指向⻚表，下⾯就需要⽤新⻚表 new 来填充 pmd
 	if (likely(pmd_none(*pmd))) {	/* Has another populated it ? */
+		// 更新 mm->pgtables_bytes 计数，该字段⽤于统计进程⻚表所占⽤的字节数
+		// 由于这⾥新增了⼀张⻚表，所以计数需要增加 PTRS_PER_PTE * sizeof(pte_t)
 		mm_inc_nr_ptes(mm);
+		// 将 new 指向的新分配出来的⻚表 page 的 pfn 以及相关初始权限位填充到 pmd 中
 		pmd_populate(mm, pmd, new);
 		new = NULL;
 	}
@@ -2848,23 +2854,31 @@ static inline void wp_page_reuse(struct vm_fault *vmf)
  */
 static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 {
+	// 缺⻚地址 address 所在 vma
 	struct vm_area_struct *vma = vmf->vma;
+	// 当前进程地址空间
 	struct mm_struct *mm = vma->vm_mm;
+	// 原来映射的物理内存⻚，pte 为只读
 	struct page *old_page = vmf->page;
+	// ⽤于写时复制的新内存⻚
 	struct page *new_page = NULL;
+	// 写时复制之后，需要修改原来的 pte，这⾥是临时构造的⼀个 pte 值
 	pte_t entry;
+	// 是否发⽣写时复制
 	int page_copied = 0;
 	struct mmu_notifier_range range;
 
 	if (unlikely(anon_vma_prepare(vma)))
 		goto oom;
-
+	// 如果 pte 原来映射的是⼀个零⻚
 	if (is_zero_pfn(pte_pfn(vmf->orig_pte))) {
+		// 新申请⼀个零⻚出来，内存⻚中的内容被零初始化
 		new_page = alloc_zeroed_user_highpage_movable(vma,
 							      vmf->address);
 		if (!new_page)
 			goto oom;
 	} else {
+		// 新申请⼀个物理内存⻚
 		new_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma,
 				vmf->address);
 		if (!new_page)
@@ -3101,6 +3115,11 @@ static vm_fault_t wp_page_shared(struct vm_fault *vmf)
  * but allow concurrent faults), with pte both mapped and locked.
  * We return with mmap_lock still held, but pte unmapped and unlocked.
  */
+/* do_wp_page 函数主要处理的写时复制场景是，访问的这块虚拟内存背后是有物理内存⻚
+	映射的，对应的 pte 不为空，只不过相关 pte 的权限是只读的，⽽虚拟内存区域 vma 是
+	有写权限的，在这种类型的虚拟内存进⾏写⼊操作的时候，触发的写时复制就在
+	do_wp_page 函数中处理
+*/
 static vm_fault_t do_wp_page(struct vm_fault *vmf)
 	__releases(vmf->ptl)
 {
@@ -3541,9 +3560,12 @@ out_release:
 // anonymous:匿名的
 static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 {
+	// 缺⻚地址 address 所在的虚拟内存区域 vma
 	struct vm_area_struct *vma = vmf->vma;
+	// 指向分配的物理内存⻚，后⾯与虚拟内存进⾏映射
 	struct page *page;
 	vm_fault_t ret = 0;
+	// 临时的 pte ⽤于构建 pte 中的值，后续会赋值给 address 在⻚表中对应的真正 pte
 	pte_t entry;
 
 	/* File mapping without ->vm_ops ? */
@@ -3560,6 +3582,8 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	 *
 	 * Here we only have mmap_read_lock(mm).
 	 */
+	// 如果 pmd 是空的，表⽰现在还没有⼀级⻚表
+	// pte_alloc 这⾥会创建⼀级⻚表，并填充 pmd 中的内容
 	if (pte_alloc(vma->vm_mm, vmf->pmd))
 		return VM_FAULT_OOM;
 
@@ -3593,6 +3617,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	// 为匿名页创建anon_vma实例和anon_vma_chain实例
 	if (unlikely(anon_vma_prepare(vma)))
 		goto oom;
+	// ⻚表创建好之后，这⾥从伙伴系统中分配⼀个 4K 物理内存⻚出来
 	page = alloc_zeroed_user_highpage_movable(vma, vmf->address);
 	if (!page)
 		goto oom;
@@ -3607,14 +3632,16 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	 * the set_pte_at() write.
 	 */
 	__SetPageUptodate(page);
-
+	// 将 page 的 pfn 以及相关权限标记位 vm_page_prot 初始化⼀个临时 pte 出来
 	entry = mk_pte(page, vma->vm_page_prot);
 	entry = pte_sw_mkyoung(entry);
+	// 如果 vma 是可写的，则将 pte 标记为可写，脏⻚
 	if (vma->vm_flags & VM_WRITE)
 		entry = pte_mkwrite(pte_mkdirty(entry));
-
+	// 锁定⼀级⻚表，并获取 address 在⻚表中对应的真实 pte
 	vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd, vmf->address,
 			&vmf->ptl);
+	// 是否有其他线程在并发处理缺⻚
 	if (!pte_none(*vmf->pte)) {
 		update_mmu_cache(vma, vmf->address, vmf->pte);
 		goto release;
@@ -3630,20 +3657,25 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 		put_page(page);
 		return handle_userfault(vmf, VM_UFFD_MISSING);
 	}
-
+	// 增加 进程 rss 相关计数，匿名内存⻚计数 + 1
 	inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
-	// 建⽴反向映射关系
+	// 建⽴匿名反向映射关系
 	page_add_new_anon_rmap(page, vma, vmf->address, false);
+	// 将匿名⻚添加到 LRU 链表中
 	lru_cache_add_inactive_or_unevictable(page, vma);
 setpte:
+	// 将 entry 赋值给真正的 pte，这⾥ pte 就算被填充好了，进程⻚表体系也就补⻬了
 	set_pte_at(vma->vm_mm, vmf->address, vmf->pte, entry);
 
 	/* No need to invalidate - it was non-present before */
+	// 刷新 mmu
 	update_mmu_cache(vma, vmf->address, vmf->pte);
 unlock:
+	// 解除 pte 的映射
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
 	return ret;
 release:
+	// 释放 page
 	put_page(page);
 	goto unlock;
 oom_free_page:
@@ -3657,6 +3689,7 @@ oom:
  * released depending on flags and vma->vm_ops->fault() return value.
  * See filemap_fault() and __lock_page_retry().
  */
+// 负责获取⽂件⻚，但并不映射
 static vm_fault_t __do_fault(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
@@ -3683,7 +3716,7 @@ static vm_fault_t __do_fault(struct vm_fault *vmf)
 			return VM_FAULT_OOM;
 		smp_wmb(); /* See comment in __pte_alloc() */
 	}
-
+	// 在 ext4 ⽂件系统中对应的实现是ext4_filemap_fault，最终会执行到filemap_fault
 	ret = vma->vm_ops->fault(vmf);
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY |
 			    VM_FAULT_DONE_COW)))
@@ -3859,9 +3892,11 @@ static vm_fault_t do_set_pmd(struct vm_fault *vmf, struct page *page)
  *
  * Return: %0 on success, %VM_FAULT_ code in case of error.
  */
+// 将之前准备好的⽂件⻚，映射到缺⻚地址 address 在进程⻚表对应的pte 中
 vm_fault_t alloc_set_pte(struct vm_fault *vmf, struct page *page)
 {
 	struct vm_area_struct *vma = vmf->vma;
+	// 判断本次缺⻚是否是 写时复制
 	bool write = vmf->flags & FAULT_FLAG_WRITE;
 	pte_t entry;
 	vm_fault_t ret;
@@ -3871,8 +3906,10 @@ vm_fault_t alloc_set_pte(struct vm_fault *vmf, struct page *page)
 		if (ret != VM_FAULT_FALLBACK)
 			return ret;
 	}
-
+	// 如果⻚表还不存在，需要先创建⼀个⻚表出来
 	if (!vmf->pte) {
+		// 如果 pmd 为空，则创建⼀个⻚表出来，并填充 pmd
+		// 如果⻚表存在，则获取 address 在⻚表中对应的 pte 保存在 vmf->pte 中
 		ret = pte_alloc_one_map(vmf);
 		if (ret)
 			return ret;
@@ -3885,8 +3922,11 @@ vm_fault_t alloc_set_pte(struct vm_fault *vmf, struct page *page)
 	}
 
 	flush_icache_page(vma, page);
+	// 根据之前分配出来的内存⻚ pfn 以及相关⻚属性 vma->vm_page_prot 构造⼀个 pte 出来
+	// 对于私有⽂件映射来说，这⾥的 pte 是只读的
 	entry = mk_pte(page, vma->vm_page_prot);
 	entry = pte_sw_mkyoung(entry);
+	// 如果是写时复制，这⾥才会将 pte 改为可写的
 	if (write)
 		entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 	/* copy-on-write page */
@@ -3898,9 +3938,12 @@ vm_fault_t alloc_set_pte(struct vm_fault *vmf, struct page *page)
 		inc_mm_counter_fast(vma->vm_mm, mm_counter_file(page));
 		page_add_file_rmap(page, false);
 	}
+	// 将构造出来的 pte （entry）赋值给 address 在⻚表中真正对应的 vmf->pte
+	// 现在进程⻚表体系就全部被构建出来了，⽂件⻚缺⻚处理到此结束
 	set_pte_at(vma->vm_mm, vmf->address, vmf->pte, entry);
 
 	/* no need to invalidate: a not-present page won't be cached */
+	// 刷新 mmu
 	update_mmu_cache(vma, vmf->address, vmf->pte);
 
 	return 0;
@@ -3922,28 +3965,33 @@ vm_fault_t alloc_set_pte(struct vm_fault *vmf, struct page *page)
  *
  * Return: %0 on success, %VM_FAULT_ code in case of error.
  */
+// 将本次缺⻚所需要的⽂件⻚映射到 pte 中
 vm_fault_t finish_fault(struct vm_fault *vmf)
 {
+	// 为本次缺⻚准备好的物理内存⻚，即后续需要⽤ pte 映射的内存⻚
 	struct page *page;
 	vm_fault_t ret = 0;
 
 	/* Did we COW the page? */
 	if ((vmf->flags & FAULT_FLAG_WRITE) &&
 	    !(vmf->vma->vm_flags & VM_SHARED))
-		page = vmf->cow_page;
+		page = vmf->cow_page; // 如果是写时复制场景，那么 pte 要映射的是这个 cow 复制过来的内存⻚
 	else
-		page = vmf->page;
+		page = vmf->page;// 在 filemap_fault 函数中读取到的⽂件⻚，后⾯需要将⽂件⻚映射到 pte 中
 
 	/*
 	 * check even for read faults because we might have lost our CoWed
 	 * page
 	 */
+	// 对于私有映射来说，这⾥需要检查进程地址空间是否被标记了 MMF_UNSTABLE
+	// 如果是，那么 oom 后续会回收这块地址空间，这会导致私有映射的⽂件⻚丢失
+	// 所以在为私有映射建⽴ pte 映射之前，需要检查⼀下
 	if (!(vmf->vma->vm_flags & VM_SHARED))
-		ret = check_stable_address_space(vmf->vma->vm_mm);
+		ret = check_stable_address_space(vmf->vma->vm_mm);// 地址空间没有被标记 MMF_UNSTABLE 则会返回 0
 	if (!ret)
-		ret = alloc_set_pte(vmf, page);
+		ret = alloc_set_pte(vmf, page);// 将创建出来的物理内存⻚映射到 address 对应在⻚表中的 pte 中
 	if (vmf->pte)
-		pte_unmap_unlock(vmf->pte, vmf->ptl);
+		pte_unmap_unlock(vmf->pte, vmf->ptl); // 释放⻚表锁
 	return ret;
 }
 
@@ -4061,7 +4109,8 @@ out:
 	vmf->pte = NULL;
 	return ret;
 }
-
+// do_read_fault 函数处理的场景是，进程在调⽤ mmap 对⽂件进⾏私有映射或者共
+//     享映射之后，⽴⻢进⾏读取的缺⻚场景
 static vm_fault_t do_read_fault(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
@@ -4072,23 +4121,32 @@ static vm_fault_t do_read_fault(struct vm_fault *vmf)
 	 * if page by the offset is not ready to be mapped (cold cache or
 	 * something).
 	 */
+	// map_pages ⽤于提前预先映射⽂件⻚相邻的若⼲⽂件⻚到相关 pte 中，从⽽减少缺⻚次数
+	// fault_around_bytes 控制预先映射的的字节数默认初始值为 65536（16个物理内存⻚）
 	if (vma->vm_ops->map_pages && fault_around_bytes >> PAGE_SHIFT > 1) {
+		// 这⾥会尝试使⽤ map_pages 将缺⻚地址 address 附近的⽂件⻚预读进 page cache
+		// 然后填充相关的 pte，⽬的是减少缺⻚次数
 		ret = do_fault_around(vmf);
 		if (ret)
 			return ret;
 	}
-
-	ret = __do_fault(vmf);
+	// 如果不满⾜预先映射的条件，则只映射本次需要的⽂件⻚
+	// ⾸先会从 page cache 中读取⽂件⻚，如果 page cache 中不存在则从磁盘中读取，
+	// 		并预读若⼲⽂件⻚到 page cache 中
+	ret = __do_fault(vmf); // 这⾥需要负责获取⽂件⻚，并不映射
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY)))
 		return ret;
-
+	// 将本次缺⻚所需要的⽂件⻚映射到 pte 中
 	ret |= finish_fault(vmf);
 	unlock_page(vmf->page);
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY)))
 		put_page(vmf->page);
 	return ret;
 }
-
+/* 当我们采⽤的是 mmap 进⾏私有⽂件映射时，在映射之后，⽴⻢进⾏写⼊操作时，
+	就会发⽣写时复制，写时复制的缺⻚处理流程内核封装在 do_cow_fault 函数中
+	申请文件页 ---> 从page cache中读取文件页 ---> 复制文件页 ---> 文件页映射到pte中
+*/
 static vm_fault_t do_cow_fault(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
@@ -4096,7 +4154,7 @@ static vm_fault_t do_cow_fault(struct vm_fault *vmf)
 
 	if (unlikely(anon_vma_prepare(vma)))
 		return VM_FAULT_OOM;
-
+	// 从伙伴系统重新申请⼀个⽤于写时复制的物理内存⻚ cow_page
 	vmf->cow_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma, vmf->address);
 	if (!vmf->cow_page)
 		return VM_FAULT_OOM;
@@ -4106,7 +4164,7 @@ static vm_fault_t do_cow_fault(struct vm_fault *vmf)
 		return VM_FAULT_OOM;
 	}
 	cgroup_throttle_swaprate(vmf->cow_page, GFP_KERNEL);
-
+	// 从 page cache 读取原来的⽂件⻚
 	ret = __do_fault(vmf);
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY)))
 		goto uncharge_out;
@@ -4115,7 +4173,7 @@ static vm_fault_t do_cow_fault(struct vm_fault *vmf)
 
 	copy_user_highpage(vmf->cow_page, vmf->page, vmf->address, vma);
 	__SetPageUptodate(vmf->cow_page);
-
+	// 将 cow_page 重新映射到缺⻚地址 address 对应在⻚表中的 pte 上
 	ret |= finish_fault(vmf);
 	unlock_page(vmf->page);
 	put_page(vmf->page);
@@ -4123,15 +4181,15 @@ static vm_fault_t do_cow_fault(struct vm_fault *vmf)
 		goto uncharge_out;
 	return ret;
 uncharge_out:
-	put_page(vmf->cow_page);
+	put_page(vmf->cow_page);	// 原来的⽂件⻚引⽤计数 - 1
 	return ret;
 }
-
+// 处理共享文件页缺页异常，没有写时复制，会涉及到脏页回写，内存数据同步的磁盘上
 static vm_fault_t do_shared_fault(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
 	vm_fault_t ret, tmp;
-
+	// 从 page cache 中读取⽂件⻚
 	ret = __do_fault(vmf);
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY)))
 		return ret;
@@ -4142,6 +4200,7 @@ static vm_fault_t do_shared_fault(struct vm_fault *vmf)
 	 */
 	if (vma->vm_ops->page_mkwrite) {
 		unlock_page(vmf->page);
+		// 将⽂件⻚变为可写状态，并为后续记录⽂件⽇志做⼀些准备⼯作
 		tmp = do_page_mkwrite(vmf);
 		if (unlikely(!tmp ||
 				(tmp & (VM_FAULT_ERROR | VM_FAULT_NOPAGE)))) {
@@ -4149,7 +4208,7 @@ static vm_fault_t do_shared_fault(struct vm_fault *vmf)
 			return tmp;
 		}
 	}
-
+	// 将⽂件⻚映射到缺⻚ address 在⻚表中对应的 pte 上
 	ret |= finish_fault(vmf);
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE |
 					VM_FAULT_RETRY))) {
@@ -4157,7 +4216,8 @@ static vm_fault_t do_shared_fault(struct vm_fault *vmf)
 		put_page(vmf->page);
 		return ret;
 	}
-
+	// 将 page 标记为脏⻚，记录相关⽂件系统的⽇志，防⽌数据丢失
+	// 判断是否将脏⻚回写
 	ret |= fault_dirty_shared_page(vmf);
 	return ret;
 }
@@ -4170,6 +4230,7 @@ static vm_fault_t do_shared_fault(struct vm_fault *vmf)
  * If mmap_lock is released, vma may become invalid (for example
  * by other thread calling munmap()).
  */
+// 处理内存映射区域缺页异常
 static vm_fault_t do_fault(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
@@ -4179,14 +4240,17 @@ static vm_fault_t do_fault(struct vm_fault *vmf)
 	/*
 	 * The VMA was not fully populated on mmap() or missing VM_DONTEXPAND
 	 */
+	// 处理 vm_ops->fault 为 null 的异常情况
 	if (!vma->vm_ops->fault) {
 		/*
 		 * If we find a migration pmd entry or a none pmd entry, which
 		 * should never happen, return SIGBUS
 		 */
+		// 如果中间⻚⽬录 pmd 指向的⼀级⻚表不在内存中，则返回 SIGBUS 错误
 		if (unlikely(!pmd_present(*vmf->pmd)))
 			ret = VM_FAULT_SIGBUS;
 		else {
+			// 获取缺⻚的⻚表项 pte
 			vmf->pte = pte_offset_map_lock(vmf->vma->vm_mm,
 						       vmf->pmd,
 						       vmf->address,
@@ -4198,19 +4262,19 @@ static vm_fault_t do_fault(struct vm_fault *vmf)
 			 * we don't have concurrent modification by hardware
 			 * followed by an update.
 			 */
-			if (unlikely(pte_none(*vmf->pte)))
+			if (unlikely(pte_none(*vmf->pte))) // pte 为空，则返回 SIGBUS 错误
 				ret = VM_FAULT_SIGBUS;
 			else
-				ret = VM_FAULT_NOPAGE;
+				ret = VM_FAULT_NOPAGE; // pte 不为空，返回 NOPAGE，即本次缺⻚处理不会分配物理内存⻚
 
 			pte_unmap_unlock(vmf->pte, vmf->ptl);
 		}
 	} else if (!(vmf->flags & FAULT_FLAG_WRITE))
-		ret = do_read_fault(vmf);
+		ret = do_read_fault(vmf); // 缺⻚如果是读操作引起的，进⼊ do_read_fault 处理(内存中没有文件页)
 	else if (!(vma->vm_flags & VM_SHARED))
-		ret = do_cow_fault(vmf);
+		ret = do_cow_fault(vmf);// 缺⻚是由私有映射区的写⼊操作引起的，则进⼊ do_cow_fault 处理写时复制
 	else
-		ret = do_shared_fault(vmf);
+		ret = do_shared_fault(vmf); // 处理共享映射区的写⼊缺⻚
 
 	/* preallocated pagetable is unused: free it */
 	if (vmf->prealloc_pte) {

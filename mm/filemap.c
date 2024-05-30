@@ -2721,13 +2721,18 @@ static struct file *do_async_mmap_readahead(struct vm_fault *vmf,
 vm_fault_t filemap_fault(struct vm_fault *vmf)
 {
 	int error;
+	// 获取映射⽂件
 	struct file *file = vmf->vma->vm_file;
 	struct file *fpin = NULL;
+	// 获取 page cache
 	struct address_space *mapping = file->f_mapping;
 	struct file_ra_state *ra = &file->f_ra;
+	// 获取映射⽂件的 inode
 	struct inode *inode = mapping->host;
+	// 获取映射⽂件内容在⽂件中的偏移
 	pgoff_t offset = vmf->pgoff;
 	pgoff_t max_off;
+	// 从 page cache 读取到的⽂件⻚，存放在 vmf->page 中返回
 	struct page *page;
 	vm_fault_t ret = 0;
 
@@ -2738,26 +2743,33 @@ vm_fault_t filemap_fault(struct vm_fault *vmf)
 	/*
 	 * Do we have something in the page cache already?
 	 */
+	// 根据⽂件偏移 offset，到 page cache 中查找对应的⽂件⻚
 	page = find_get_page(mapping, offset);
 	if (likely(page) && !(vmf->flags & FAULT_FLAG_TRIED)) {
 		/*
 		 * We found the page, so try async readahead before
 		 * waiting for the lock.
 		 */
+		// 如果⽂件⻚在 page cache 中，则启动异步预读，预读后⾯的若⼲⽂件⻚到 page cache 中
 		fpin = do_async_mmap_readahead(vmf, page);
 	} else if (!page) {
 		/* No page in the page cache at all */
+		// 如果⽂件⻚不在 page cache，那么就需要启动 io 从⽂件中读取内容到 page cache
+		// 由于涉及到了磁盘 io ，所以本次缺⻚类型为 VM_FAULT_MAJOR
 		count_vm_event(PGMAJFAULT);
 		count_memcg_event_mm(vmf->vma->vm_mm, PGMAJFAULT);
 		ret = VM_FAULT_MAJOR;
+		// 启动同步预读，将所需的⽂件数据读取进 page cache 中并同步预读
+		// 		若⼲相邻的⽂件数据到 page cache
 		fpin = do_sync_mmap_readahead(vmf);
 retry_find:
+		// 尝试到 page cache 中重新读取⽂件⻚，这⼀次就可以读到了
 		page = pagecache_get_page(mapping, offset,
 					  FGP_CREAT|FGP_FOR_MMAP,
 					  vmf->gfp_mask);
 		if (!page) {
 			if (fpin)
-				goto out_retry;
+				goto out_retry;	
 			return VM_FAULT_OOM;
 		}
 	}

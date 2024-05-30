@@ -78,9 +78,11 @@ static inline void pmd_populate_kernel_safe(struct mm_struct *mm,
 static inline void pmd_populate(struct mm_struct *mm, pmd_t *pmd,
 				struct page *pte)
 {
+	// 通过⻚表 page 获取对应的 pfn
 	unsigned long pfn = page_to_pfn(pte);
-
+	// 为该pfn分配pte条目
 	paravirt_alloc_pte(mm, pfn);
+	// 将⻚表 page 的 pfn 以及初始权限位 _PAGE_TABLE 填充到 pmd 中
 	set_pmd(pmd, __pmd(((pteval_t)pfn << PAGE_SHIFT) | _PAGE_TABLE));
 }
 

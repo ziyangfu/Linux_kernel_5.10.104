@@ -785,7 +785,7 @@ struct task_struct {
 	struct vmacache			vmacache;
 
 #ifdef SPLIT_RSS_COUNTING
-	struct task_rss_stat		rss_stat;
+	struct task_rss_stat		rss_stat;   // 统计进程常驻内存信息
 #endif
 	int				exit_state;
 	int				exit_code;

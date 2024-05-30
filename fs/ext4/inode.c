@@ -6210,7 +6210,7 @@ vm_fault_t ext4_filemap_fault(struct vm_fault *vmf)
 	vm_fault_t ret;
 
 	down_read(&EXT4_I(inode)->i_mmap_sem);
-	ret = filemap_fault(vmf);
+	ret = filemap_fault(vmf); // 先把缺⻚所需要的⽂件⻚获取出来，为后⾯的映射做准备
 	up_read(&EXT4_I(inode)->i_mmap_sem);
 
 	return ret;
