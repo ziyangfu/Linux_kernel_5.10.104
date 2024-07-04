@@ -2826,12 +2826,15 @@ static inline void wp_page_reuse(struct vm_fault *vmf)
 	 */
 	if (page)
 		page_cpupid_xchg_last(page, (1 << LAST_CPUPID_SHIFT) - 1);
-
+	// 先将 tlb cache 中缓存的 address 对应的 pte 刷出缓存
 	flush_cache_page(vma, vmf->address, pte_pfn(vmf->orig_pte));
+	// 将原来 pte 的 access 位置 1 ，表⽰该 pte 映射的物理内存⻚是活跃的
 	entry = pte_mkyoung(vmf->orig_pte);
+	// 将原来只读的 pte 改为可写的，并标记为脏⻚
 	entry = maybe_mkwrite(pte_mkdirty(entry), vma);
+	// 将更新后的 entry 值设置到⻚表 pte 中
 	if (ptep_set_access_flags(vma, vmf->address, vmf->pte, entry, 1))
-		update_mmu_cache(vma, vmf->address, vmf->pte);
+		update_mmu_cache(vma, vmf->address, vmf->pte); // 更新 mmu
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
 	count_vm_event(PGREUSE);
 }
@@ -2883,7 +2886,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 				vmf->address);
 		if (!new_page)
 			goto oom;
-
+		// 将原来内存⻚ old page 中的内容拷⻉到新内存⻚ new page 中
 		if (!cow_user_page(new_page, old_page, vmf)) {
 			/*
 			 * COW failed, if the fault was solved by other,
@@ -2912,20 +2915,28 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 	/*
 	 * Re-check the pte - we dropped the lock
 	 */
+	// 给⻚表加锁，并重新获取 address 在⻚表中对应的 pte
 	vmf->pte = pte_offset_map_lock(mm, vmf->pmd, vmf->address, &vmf->ptl);
+	// 判断加锁前的 pte （orig_pte）与加锁后的 pte （vmf->pte）是否相同
+	// ⽬的是判断此时是否有其他线程正在并发修改 pte
 	if (likely(pte_same(*vmf->pte, vmf->orig_pte))) {
 		if (old_page) {
+			// 更新进程常驻内存信息 rss_state
 			if (!PageAnon(old_page)) {
+				// 减少 MM_FILEPAGES 计数
 				dec_mm_counter_fast(mm,
 						mm_counter_file(old_page));
-				inc_mm_counter_fast(mm, MM_ANONPAGES);
+				inc_mm_counter_fast(mm, MM_ANONPAGES); // 由于发⽣写时复制，这⾥匿名⻚个数加 1
 			}
 		} else {
 			inc_mm_counter_fast(mm, MM_ANONPAGES);
 		}
+		// 将旧的 tlb 缓存刷出
 		flush_cache_page(vma, vmf->address, pte_pfn(vmf->orig_pte));
+		// 创建⼀个临时的 pte 映射到新内存⻚ new page 上
 		entry = mk_pte(new_page, vma->vm_page_prot);
 		entry = pte_sw_mkyoung(entry);
+		// 设置 entry 为可写的，正是这⾥, pte 的权限由只读变为了可写
 		entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 		/*
 		 * Clear the pte entry and flush it first, before updating the
@@ -2934,14 +2945,18 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		 * thread doing COW.
 		 */
 		ptep_clear_flush_notify(vma, vmf->address, vmf->pte);
+		// 为新的内存⻚建⽴反向映射关系
 		page_add_new_anon_rmap(new_page, vma, vmf->address, false);
+		// 将新的内存⻚加⼊到 LRU active 链表中
 		lru_cache_add_inactive_or_unevictable(new_page, vma);
 		/*
 		 * We call the notify macro here because, when using secondary
 		 * mmu page tables (such as kvm shadow page tables), we want the
 		 * new page to be mapped directly into the secondary page table.
 		 */
+		// 将 entry 值重新设置到⼦进程⻚表 pte 中
 		set_pte_at_notify(mm, vmf->address, vmf->pte, entry);
+		// 更新 mmu
 		update_mmu_cache(vma, vmf->address, vmf->pte);
 		if (old_page) {
 			/*
@@ -2966,6 +2981,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 			 * mapcount is visible. So transitively, TLBs to
 			 * old page will be flushed before it can be reused.
 			 */
+			// 将原来的内存⻚从当前进程的反向映射关系中解除
 			page_remove_rmap(old_page, false);
 		}
 
@@ -2978,7 +2994,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 
 	if (new_page)
 		put_page(new_page);
-
+	// 释放⻚表锁
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
 	/*
 	 * No need to double call mmu_notifier->invalidate_range() callback as
@@ -2996,6 +3012,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 				munlock_vma_page(old_page);
 			unlock_page(old_page);
 		}
+		// 旧内存⻚的引⽤计数减 1，因此父进程访问该内存页的时候，因为是独占的，就不会发生写时复制
 		put_page(old_page);
 	}
 	return page_copied ? VM_FAULT_WRITE : 0;
@@ -3137,7 +3154,7 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 	if (unlikely(userfaultfd_wp(vmf->vma) &&
 		     mm_tlb_flush_pending(vmf->vma->vm_mm)))
 		flush_tlb_page(vmf->vma, vmf->address);
-
+	// 获取 pte 映射的物理内存⻚
 	vmf->page = vm_normal_page(vma, vmf->address, vmf->orig_pte);
 	if (!vmf->page) {
 		/*
@@ -3159,6 +3176,7 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 	 * Take out anonymous pages first, anonymous shared vmas are
 	 * not dirty accountable.
 	 */
+	// 物理内存⻚为匿名⻚的情况
 	if (PageAnon(vmf->page)) {
 		struct page *page = vmf->page;
 
@@ -3181,6 +3199,10 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 		return VM_FAULT_WRITE;
 	} else if (unlikely((vma->vm_flags & (VM_WRITE|VM_SHARED)) ==
 					(VM_WRITE|VM_SHARED))) {
+		// 处理共享可写的内存⻚
+		// 由于⼤家都可写，所以这⾥也只是调⽤ wp_page_reuse 复⽤当前内存⻚即可，不做写时复制处理
+		// 由于是共享的，对于⽂件⻚来说是可以回写到磁盘上的，所以会额外调⽤⼀次 
+		// fault_dirty_shared_page
 		return wp_page_shared(vmf);
 	}
 copy:
@@ -3190,6 +3212,10 @@ copy:
 	get_page(vmf->page);
 
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
+	// ⾛到这⾥表⽰当前物理内存⻚的引⽤计数⼤于 1 被多个进程引⽤
+	// 对于私有可写的虚拟内存区域来说，就要发⽣写时复制
+	// ⽽对于私有⽂件⻚的情况来说，不必判断内存⻚的引⽤计数
+	// 因为是私有⽂件⻚，不管⽂件⻚的引⽤计数是不是 1 ，都要进⾏写时复制
 	return wp_page_copy(vmf);
 }
 

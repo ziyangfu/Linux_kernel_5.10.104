@@ -148,10 +148,10 @@ struct zone;
  * We always assume that blocks are of size PAGE_SIZE.
  */
 struct swap_extent {
-	struct rb_node rb_node;
-	pgoff_t start_page;
-	pgoff_t nr_pages;
-	sector_t start_block;
+	struct rb_node rb_node;   	// 红⿊树节点
+	pgoff_t start_page;			// 块组内，第⼀个映射的 slot 编号
+	pgoff_t nr_pages;			// 映射的 slot 个数
+	sector_t start_block;		// 块组内第⼀个磁盘块
 };
 
 /*
@@ -237,10 +237,15 @@ struct swap_cluster_list {
 /*
  * The in-memory structure used to track swap areas.
  */
+// 交换区描述
 struct swap_info_struct {
+	// ⽤于表⽰该交换区的状态，⽐如 SWP_USED 表⽰正在使⽤状态，SWP_WRITEOK 表⽰交换区是可写的状态
 	unsigned long	flags;		/* SWP_USED etc: see above */
+	// 交换区的优先级
 	signed short	prio;		/* swap priority of this type */
+	// 指向该交换区在链表中的位置
 	struct plist_node list;		/* entry in swap_active_head */
+	// 该交换区在 swap_info 数组中的索引
 	signed char	type;		/* strange name for an index */
 	unsigned int	max;		/* extent of the swap_map */
 	unsigned char *swap_map;	/* vmalloc'ed array of usage counts */
@@ -248,14 +253,19 @@ struct swap_info_struct {
 	struct swap_cluster_list free_clusters; /* free clusters list */
 	unsigned int lowest_bit;	/* index of first free in swap_map */
 	unsigned int highest_bit;	/* index of last free in swap_map */
+	// 该交换区可以容纳 swap 的匿名⻚总数
 	unsigned int pages;		/* total of usable pages of swap */
+	// 已经 swap 到该交换区的匿名⻚总数
 	unsigned int inuse_pages;	/* number of those currently in use */
 	unsigned int cluster_next;	/* likely index for next allocation */
 	unsigned int cluster_nr;	/* countdown to next cluster search */
 	unsigned int __percpu *cluster_next_cpu; /*percpu index for next allocation */
 	struct percpu_cluster __percpu *percpu_cluster; /* per cpu's swap location */
 	struct rb_root swap_extent_root;/* root of the swap extent rbtree */
+	// 如果该交换区是 swap partition 则指向该磁盘分区的块设备结构 block_device
+	// 如果该交换区是 swap file 则指向⽂件底层依赖的块设备结构 block_device
 	struct block_device *bdev;	/* swap device or bdev of swap file */
+	// 指向 swap file 的 file 结构
 	struct file *swap_file;		/* seldom referenced */
 	unsigned int old_block_size;	/* seldom referenced */
 #ifdef CONFIG_FRONTSWAP

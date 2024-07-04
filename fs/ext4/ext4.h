@@ -320,6 +320,7 @@ struct ext4_io_submit {
 /*
  * Structure of a blocks group descriptor
  */
+// 块组描述
 struct ext4_group_desc
 {
 	__le32	bg_block_bitmap_lo;	/* Blocks bitmap block */
@@ -390,9 +391,9 @@ struct flex_groups {
 /*
  * Constants relative to the data blocks
  */
-#define	EXT4_NDIR_BLOCKS		12
+#define	EXT4_NDIR_BLOCKS		12    // i_block[0 ~ 11] 可以直接得到保存文件内容的块
 #define	EXT4_IND_BLOCK			EXT4_NDIR_BLOCKS
-#define	EXT4_DIND_BLOCK			(EXT4_IND_BLOCK + 1)
+#define	EXT4_DIND_BLOCK			(EXT4_IND_BLOCK + 1)   // 都是间接块
 #define	EXT4_TIND_BLOCK			(EXT4_DIND_BLOCK + 1)
 #define	EXT4_N_BLOCKS			(EXT4_TIND_BLOCK + 1)
 
