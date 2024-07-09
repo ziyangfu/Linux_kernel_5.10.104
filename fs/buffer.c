@@ -1257,6 +1257,7 @@ static inline void check_irqs_on(void)
  * inserted at the front, and the buffer_head at the back if any is evicted.
  * Or, if already in the LRU it is moved to the front.
  */
+// 将新的缓冲头添加到缓冲中
 static void bh_lru_install(struct buffer_head *bh)
 {
 	struct buffer_head *evictee = bh;
@@ -1283,6 +1284,7 @@ static void bh_lru_install(struct buffer_head *bh)
 /*
  * Look up the bh in this cpu's LRU.  If it's there, move it to the head.
  */
+// 查找所需数据项是否在块缓存中
 static struct buffer_head *
 lookup_bh_lru(struct block_device *bdev, sector_t block, unsigned size)
 {

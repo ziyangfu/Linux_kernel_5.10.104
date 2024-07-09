@@ -644,8 +644,8 @@ struct inode {
 	struct posix_acl	*i_default_acl;
 #endif
 
-	const struct inode_operations	*i_op;
-	struct super_block	*i_sb;
+	const struct inode_operations	*i_op;  // 索引节点操作表
+	struct super_block	*i_sb;    // 相关的超级块
 	struct address_space	*i_mapping;
 
 #ifdef CONFIG_SECURITY
@@ -713,6 +713,7 @@ struct inode {
 	atomic_t		i_readcount; /* struct files open RO */
 #endif
 	union {
+		// 该索引节点对应的文件操作集
 		const struct file_operations	*i_fop;	/* former ->i_op->default_file_ops */
 		void (*free_inode)(struct inode *);
 	};
@@ -1437,15 +1438,17 @@ struct sb_writers {
 	wait_queue_head_t		wait_unfrozen;	/* for get_super_thawed() */
 	struct percpu_rw_semaphore	rw_sem[SB_FREEZE_LEVELS];
 };
-
+// 超级块数据结构
 struct super_block {
+	// 指向超级块链表的指针
 	struct list_head	s_list;		/* Keep this first */
 	dev_t			s_dev;		/* search index; _not_ kdev_t */
 	unsigned char		s_blocksize_bits;
 	unsigned long		s_blocksize;
 	loff_t			s_maxbytes;	/* Max file size */
+	// 文件系统类型
 	struct file_system_type	*s_type;
-	const struct super_operations	*s_op;
+	const struct super_operations	*s_op;   // 超级块方法
 	const struct dquot_operations	*dq_op;
 	const struct quotactl_ops	*s_qcop;
 	const struct export_operations *s_export_op;
@@ -1885,7 +1888,31 @@ struct file_operations {
 				   loff_t len, unsigned int remap_flags);
 	int (*fadvise)(struct file *, loff_t, loff_t, int);
 } __randomize_layout;
+/*
+GPT:
 
+lookup：用于查找文件系统中的文件。它接收一个inode和一个dentry，并返回一个指向目标文件的dentry。
+get_link：用于获取符号链接指向的目标路径。它接收一个dentry、一个inode和一个delayed_call结构体，返回一个指向目标路径的字符串。
+permission：用于检查对文件的操作权限。它接收一个inode和一个操作权限标志，返回一个整数，表示是否允许进行该操作。
+get_acl：用于获取文件的访问控制列表（ACL）。它接收一个inode和一个标志，返回一个指向posix_acl结构体的指针。
+readlink：用于读取符号链接所指向的目标路径。它接收一个dentry、一个用户空间的缓冲区和一个长度，返回读取的字节数。
+create：用于创建一个新的文件。它接收一个inode、一个dentry、一个文件权限标志和一个布尔值，返回0或错误码。
+link：用于在文件系统中创建一个新的硬链接。它接收一个源dentry、一个源inode和一个目标dentry，返回0或错误码。
+unlink：用于从文件系统中删除一个文件。它接收一个inode和一个dentry，返回0或错误码。
+symlink：用于创建一个新的符号链接。它接收一个源inode、一个目标dentry和一个目标路径，返回0或错误码。
+mkdir：用于创建一个新的目录。它接收一个inode、一个dentry和一个文件权限标志，返回0或错误码。
+rmdir：用于删除一个空的目录。它接收一个inode和一个dentry，返回0或错误码。
+mknod：用于创建一个特殊的文件节点（如设备文件）。它接收一个inode、一个dentry、一个文件权限标志和一个设备号，返回0或错误码。
+rename：用于重命名文件或目录。它接收两个inode、两个dentry和一个标志，返回0或错误码。
+setattr：用于修改文件的属性。它接收一个dentry和一个iattr结构体，返回0或错误码。
+getattr：用于获取文件的属性。它接收一个路径、一个kstat结构体、一个标志和一个标志，返回0或错误码。
+listxattr：用于列出文件的扩展属性。它接收一个dentry、一个缓冲区和一个长度，返回写入缓冲区的字节数。
+fiemap：用于获取文件的映射信息。它接收一个inode、一个fiemap_extent_info结构体、一个起始位置和一个长度，返回0或错误码。
+update_time：用于更新文件的修改时间、访问时间和状态改变时间。它接收一个inode、一个timespec64结构体和一个标志，返回0或错误码。
+atomic_open：用于原子地打开文件。它接收一个inode、一个dentry、一个file结构体、一个打开标志和一个创建模式，返回0或错误码。
+tmpfile：用于创建一个临时文件。它接收一个inode、一个dentry和一个文件权限标志，返回0或错误码。
+set_acl：用于设置文件的访问控制列表（ACL）。它接收一个inode、一个posix_acl结构体和一个标志，返回0或错误码。
+*/
 struct inode_operations {
 	struct dentry * (*lookup) (struct inode *,struct dentry *, unsigned int);
 	const char * (*get_link) (struct dentry *, struct inode *, struct delayed_call *);
@@ -1958,6 +1985,7 @@ extern loff_t vfs_dedupe_file_range_one(struct file *src_file, loff_t src_pos,
 
 
 struct super_operations {
+	// 该函数在给定的超级块下创建并初始化一个新的索引节点对象
    	struct inode *(*alloc_inode)(struct super_block *sb);
 	void (*destroy_inode)(struct inode *);
 	void (*free_inode)(struct inode *);
@@ -2282,7 +2310,7 @@ struct file_system_type {
 };
 
 #define MODULE_ALIAS_FS(NAME) MODULE_ALIAS("fs-" NAME)
-
+// dentry:目录项
 extern struct dentry *mount_bdev(struct file_system_type *fs_type,
 	int flags, const char *dev_name, void *data,
 	int (*fill_super)(struct super_block *, void *, int));
