@@ -402,6 +402,7 @@ EXPORT_SYMBOL(kmem_cache_create_usercopy);
  * Return: a pointer to the cache on success, NULL on failure.
  */
 // slab cache的接口函数
+// size ： 内存块大小
 struct kmem_cache *
 kmem_cache_create(const char *name, unsigned int size, unsigned int align,
 		slab_flags_t flags, void (*ctor)(void *))
@@ -595,6 +596,8 @@ EXPORT_SYMBOL(kmalloc_caches);
  * fls.
  */
 // 内核通过定义⼀个 size_index[24] 数组来存放申请内存块⼤⼩在 192 字节以下的kmalloc 内存池选取规则
+// size_index[0]的意思是如果内核申请的内存块小于8字节时，kmalloc会到kmalloc_info[3]
+// 所指定的通用slab cache，即kmalloc-8中分配一个8字节的内存块
 static u8 size_index[24] __ro_after_init = {
 	3,	/* 8 */
 	4,	/* 16 */

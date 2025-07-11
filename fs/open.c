@@ -1165,7 +1165,8 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 			   struct open_how *how)
 {
 	struct open_flags op;
-	int fd = build_open_flags(how, &op);
+	// 将flag保存着op中，fd是返回值（error），0代表无错
+	int fd = build_open_flags(how, &op);  
 	struct filename *tmp;
 
 	if (fd)
@@ -1175,7 +1176,7 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
 
-	fd = get_unused_fd_flags(how->flags);
+	fd = get_unused_fd_flags(how->flags);  // 获取一个fd
 	if (fd >= 0) {
 		struct file *f = do_filp_open(dfd, tmp, &op);
 		if (IS_ERR(f)) {

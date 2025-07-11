@@ -1920,7 +1920,13 @@ out_ret:
 	putname(filename);
 	return retval;
 }
-
+/*
+该函数 kernel_execve 是 Linux 内核中用于执行可执行文件的接口，
+通常在内核上下文中使用（例如由内核线程启动用户空间程序时调用）。
+	filename: 要执行的可执行文件路径；
+	argv: 命令行参数列表；
+	envp: 环境变量列表
+*/
 int kernel_execve(const char *kernel_filename,
 		  const char *const *argv, const char *const *envp)
 {

@@ -133,6 +133,12 @@ extern pmd_t *mm_find_pmd(struct mm_struct *mm, unsigned long address);
  * in __alloc_pages_slowpath(). All other functions pass the whole structure
  * by a const pointer.
  */
+/**
+highest_zoneidx	表示允许分配的最高内存区域类型（如ZONE_DMA、ZONE_NORMAL等）的索引
+这个值在初始化不可以变，并由gfp_mask直接决定
+preferred_zoneref 指向当前NUMA节点中首选内存区域的引用（包含zone指针和zone索引信息）
+这个值在后续是可以改变的，可能会被慢速路径调整
+*/
 struct alloc_context {
 	// 运⾏进程 CPU 所在 NUMA 节点以及其所有备⽤ NUMA 节点中允许内存分配的内存区域
 	// 包含了当前 NUMA 节点在内的所有备⽤ NUMA 节点的所有物理内存区域，⽤于当前 NUMA

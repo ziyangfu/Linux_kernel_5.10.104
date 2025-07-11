@@ -142,6 +142,10 @@ static inline struct tcp_request_sock *tcp_rsk(const struct request_sock *req)
 	return (struct tcp_request_sock *)req;
 }
 
+// inet_connection_sock、inet_sock、sock结构体的起始地址都是一样的
+// 这里再加上 tcp_sock，因此都可以相互转换
+// 这里说明，tcp_sock是包含了sock的，比sock结构体要大
+// sock实际是最小的结构体，即类似于父类
 struct tcp_sock {
 	/* inet_connection_sock has to be the first member of tcp_sock */
 	struct inet_connection_sock	inet_conn;

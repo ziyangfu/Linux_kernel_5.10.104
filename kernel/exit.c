@@ -644,6 +644,10 @@ static void forget_original_parent(struct task_struct *father,
  * Send signals to all our closest relatives so that they know
  * to properly mourn us..
  */
+/*
+进程退出时通知其父进程和相关线程，并进行清理工作
+负责进程退出后向父进程发信号、处理线程组、清理资源并释放内存
+*/
 static void exit_notify(struct task_struct *tsk, int group_dead)
 {
 	bool autoreap;
@@ -682,7 +686,7 @@ static void exit_notify(struct task_struct *tsk, int group_dead)
 
 	list_for_each_entry_safe(p, n, &dead, ptrace_entry) {
 		list_del_init(&p->ptrace_entry);
-		release_task(p);
+		release_task(p);  // 遍历dead列表中的进程，释放进程结构体
 	}
 }
 
@@ -710,6 +714,15 @@ static void check_stack_usage(void)
 static inline void check_stack_usage(void) {}
 #endif
 
+/*
+1. 初始化检查：防止从中断上下文、空闲任务或递归调用退出。
+2. 上下文清理：重置地址空间、关闭文件、信号量、内存管理等资源。
+3. 通知与统计：发送退出信号、更新统计信息、审计日志。
+4. 资源释放：释放线程结构、调度器相关状态、RCU机制等。
+5. 最终死亡：调用 do_task_dead() 标记任务为死亡并释放最后的资源。
+
+该函数不可返回__noreturn，执行完毕后进程彻底终止。
+*/
 void __noreturn do_exit(long code)
 {
 	struct task_struct *tsk = current;
@@ -799,7 +812,7 @@ void __noreturn do_exit(long code)
 
 	if (group_dead)
 		acct_process();
-	trace_sched_process_exit(tsk);
+	trace_sched_process_exit(tsk);  // 进程退出跟踪点
 
 	exit_sem(tsk);
 	exit_shm(tsk);
@@ -828,7 +841,8 @@ void __noreturn do_exit(long code)
 	flush_ptrace_hw_breakpoint(tsk);
 
 	exit_tasks_rcu_start();
-	exit_notify(tsk, group_dead);
+	// 负责进程退出后向父进程发信号、处理线程组、清理资源并释放内存
+	exit_notify(tsk, group_dead); 
 	proc_exit_connector(tsk);
 	mpol_put_task_policy(tsk);
 #ifdef CONFIG_FUTEX
@@ -859,7 +873,7 @@ void __noreturn do_exit(long code)
 	exit_tasks_rcu_finish();
 
 	lockdep_free_task(tsk);
-	do_task_dead();
+	do_task_dead();  // 进程结束了，启动schedule
 }
 EXPORT_SYMBOL_GPL(do_exit);
 
@@ -872,6 +886,7 @@ void complete_and_exit(struct completion *comp, long code)
 }
 EXPORT_SYMBOL(complete_and_exit);
 
+// 进程执行结束后，无论是主动退出还是被强制终止，都会进入内核，并调用exit
 SYSCALL_DEFINE1(exit, int, error_code)
 {
 	do_exit((error_code&0xff)<<8);
@@ -914,6 +929,8 @@ do_group_exit(int exit_code)
  * wait4()-ing process will get the correct exit code - even if this
  * thread is not the thread group leader.
  */
+// 有一些程序，实际退出的函数是exit_group，
+// exit_group会调用do_group_exit，而do_group_exit会调用do_exit，
 SYSCALL_DEFINE1(exit_group, int, error_code)
 {
 	do_group_exit((error_code & 0xff) << 8);

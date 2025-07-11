@@ -1600,7 +1600,7 @@ static int unix_scm_to_skb(struct scm_cookie *scm, struct sk_buff *skb, bool sen
 	UNIXCB(skb).fp = NULL;
 	unix_get_secdata(scm, skb);
 	if (scm->fp && send_fds)
-		err = unix_attach_fds(scm, skb);
+		err = unix_attach_fds(scm, skb); // 将文件描述符添加到skb中
 
 	skb->destructor = unix_destruct_scm;
 	return err;
@@ -1893,7 +1893,7 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 			       size_t len)
 {
 	struct sock *sk = sock->sk;
-	struct sock *other = NULL;
+	struct sock *other = NULL;  // 对于客户端来说，是对方的sock
 	int err, size;
 	struct sk_buff *skb;
 	int sent = 0;
@@ -1902,6 +1902,8 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 	int data_len;
 
 	wait_for_unix_gc();
+	// 控制消息的发送
+	// 准备控制消息（如凭证、安全上下文等），并将其附加到 scm_cookie 结构体中
 	err = scm_send(sock, msg, &scm, false);
 	if (err < 0)
 		return err;
@@ -1943,6 +1945,7 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 			goto out_err;
 
 		/* Only send the fds in the first buffer */
+		// 将控制消息（如PID、UID、GID）以及文件描述符附加到 sk_buff 结构体中
 		err = unix_scm_to_skb(&scm, skb, !fds_sent);
 		if (err < 0) {
 			kfree_skb(skb);
@@ -1953,6 +1956,8 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 		skb_put(skb, size - data_len);
 		skb->data_len = data_len;
 		skb->len = size;
+		// 将用户空间的数据拷贝到SKB中
+		// net/core/datagram.c
 		err = skb_copy_datagram_from_iter(skb, 0, &msg->msg_iter, size);
 		if (err) {
 			kfree_skb(skb);
@@ -1965,11 +1970,14 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 		    (other->sk_shutdown & RCV_SHUTDOWN))
 			goto pipe_err_free;
 
-		maybe_add_creds(skb, sock, other);
+		maybe_add_creds(skb, sock, other);  // 是一个合适的kprobe挂载点
 		scm_stat_add(other, skb);
+		// 将这个skb添加到对方sock的接收队列中
 		skb_queue_tail(&other->sk_receive_queue, skb);
 		unix_state_unlock(other);
-		other->sk_data_ready(other);
+		// 数据就绪，唤醒对方来收数据
+		// 通知服务端有新的数据到达的标准方式。
+		other->sk_data_ready(other); 
 		sent += size;
 	}
 
@@ -2191,11 +2199,11 @@ static int unix_dgram_recvmsg(struct socket *sock, struct msghdr *msg,
 		unix_state_unlock(sk);
 		goto out;
 	}
-
+	// 等待队列上有数据了，唤醒上层，stream用的sk_data_ready，和下述逻辑一致
 	if (wq_has_sleeper(&u->peer_wait))
 		wake_up_interruptible_sync_poll(&u->peer_wait,
 						EPOLLOUT | EPOLLWRNORM |
-						EPOLLWRBAND);
+						EPOLLWRBAND);  // 事件通知机制
 
 	if (msg->msg_name)
 		unix_copy_addr(msg, skb->sk);
@@ -2315,7 +2323,7 @@ static int unix_stream_read_generic(struct unix_stream_read_state *state,
 				    bool freezable)
 {
 	struct scm_cookie scm;
-	struct socket *sock = state->socket;
+	struct socket *sock = state->socket;  // 数据接收端的socket
 	struct sock *sk = sock->sk;
 	struct unix_sock *u = unix_sk(sk);
 	int copied = 0;
@@ -2362,6 +2370,8 @@ redo:
 			err = -ECONNRESET;
 			goto unlock;
 		}
+		// 从当前sk中拿出对方（如客户端）放在当前接收队列中的skb
+		// 里面就附带了对方发送的，存在skb中的数据
 		last = skb = skb_peek(&sk->sk_receive_queue);
 		last_len = last ? last->len : 0;
 again:
@@ -2435,6 +2445,7 @@ unlock:
 
 		chunk = min_t(unsigned int, unix_skb_len(skb) - skip, size);
 		skb_get(skb);
+		// 即调用 unix_stream_splice_actor
 		chunk = state->recv_actor(skb, skip, chunk, state);
 		drop_skb = !unix_skb_len(skb);
 		/* skb is only safe to use if !drop_skb */
@@ -2510,6 +2521,7 @@ out:
 	return copied ? : err;
 }
 
+// 在这里采集uds payload也是可以的
 static int unix_stream_read_actor(struct sk_buff *skb,
 				  int skip, int chunk,
 				  struct unix_stream_read_state *state)
@@ -2521,6 +2533,8 @@ static int unix_stream_read_actor(struct sk_buff *skb,
 	return ret ?: chunk;
 }
 
+
+// uds stream收数据
 static int unix_stream_recvmsg(struct socket *sock, struct msghdr *msg,
 			       size_t size, int flags)
 {

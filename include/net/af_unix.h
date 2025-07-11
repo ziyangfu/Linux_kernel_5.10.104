@@ -56,20 +56,23 @@ struct scm_stat {
 /* The AF_UNIX socket */
 struct unix_sock {
 	/* WARNING: sk has to be the first member */
-	struct sock		sk;
-	struct unix_address	*addr;
-	struct path		path;
+    // 这是unix_sock结构体中最重要的成员，它代表一个网络套接字。
+	// 注意：sk必须是结构体的第一个成员，因为继承机制和强制类型转换。
+	struct sock		sk;   
+	struct unix_address	*addr;      // 存储Unix域套接字的地址信息。
+	struct path		path;  // 保存文件系统的路径信息，用于Unix域套接字的绑定。
+		// iolock用于同步I/O操作，bindlock用于同步绑定操作。
 	struct mutex		iolock, bindlock;
-	struct sock		*peer;
-	struct list_head	link;
+	struct sock		*peer;  // 指向与当前套接字配对的另一个Unix域套接字
+	struct list_head	link;  // 用于将Unix域套接字链接到某个列表中
 	atomic_long_t		inflight;
 	spinlock_t		lock;
-	unsigned long		gc_flags;
+	unsigned long		gc_flags;  	// 用于标记垃圾收集的标志位。
 #define UNIX_GC_CANDIDATE	0
 #define UNIX_GC_MAYBE_CYCLE	1
-	struct socket_wq	peer_wq;
+	struct socket_wq	peer_wq; // 用于等待队列，当关联的peer变为可读或可写时唤醒等待的进程
 	wait_queue_entry_t	peer_wake;
-	struct scm_stat		scm_stat;
+	struct scm_stat		scm_stat;  // 用于统计辅助控制消息（SCM）的相关信息
 };
 
 static inline struct unix_sock *unix_sk(const struct sock *sk)

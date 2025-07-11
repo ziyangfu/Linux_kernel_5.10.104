@@ -85,14 +85,16 @@ extern struct dentry_stat_t dentry_stat;
 #endif
 
 #define d_lock	d_lockref.lock
-
+// 表示目录项，用于将路径名映射到对应的inode
 struct dentry {
 	/* RCU lookup touched fields */
 	unsigned int d_flags;		/* protected by d_lock */
 	seqcount_spinlock_t d_seq;	/* per dentry seqlock */
 	struct hlist_bl_node d_hash;	/* lookup hash list */
+	// 指向父目录的dentry
 	struct dentry *d_parent;	/* parent directory */
-	struct qstr d_name;
+	struct qstr d_name;  // 目录项名称（字符串）
+	// 关联的inode指针，若为NULL则表示负向目录项（negative dentry）
 	struct inode *d_inode;		/* Where the name belongs to - NULL is
 					 * negative */
 	unsigned char d_iname[DNAME_INLINE_LEN];	/* small names */
@@ -131,7 +133,13 @@ enum dentry_d_lock_class
 	DENTRY_D_LOCK_NORMAL, /* implicitly used by plain spin_lock() APIs. */
 	DENTRY_D_LOCK_NESTED
 };
-
+/*
+使用 ____cacheline_aligned 是为了确保 struct dentry_operations 在 L1 缓存行的起始位置上。
+这样做的目的是为了避免缓存行之间的争用，尤其是在多处理器（SMP）系统中，
+当多个处理器核心同时访问不同的成员变量时，如果它们位于同一缓存行内，可能会导致不必要的缓存行共享，
+从而降低性能。通过将结构体对齐到缓存行边界，可以减少这种争用，提高并发访问时的性能
+关键词： cache伪共享问题
+*/
 struct dentry_operations {
 	int (*d_revalidate)(struct dentry *, unsigned int);// 判断目录项是否有效
 	int (*d_weak_revalidate)(struct dentry *, unsigned int);

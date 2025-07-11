@@ -529,7 +529,7 @@ static size_t simple_copy_to_iter(const void *addr, size_t bytes,
 int skb_copy_datagram_iter(const struct sk_buff *skb, int offset,
 			   struct iov_iter *to, int len)
 {
-	trace_skb_copy_datagram_iovec(skb, len);
+	trace_skb_copy_datagram_iovec(skb, len);  // 也可以用tracepoint跟踪
 	return __skb_datagram_iter(skb, offset, to, len, false,
 			simple_copy_to_iter, NULL);
 }
@@ -544,6 +544,7 @@ EXPORT_SYMBOL(skb_copy_datagram_iter);
  *
  *	Returns 0 or -EFAULT.
  */
+// 将用户态的数据拷贝到skb中
 int skb_copy_datagram_from_iter(struct sk_buff *skb, int offset,
 				 struct iov_iter *from,
 				 int len)

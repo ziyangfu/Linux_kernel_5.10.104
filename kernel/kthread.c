@@ -647,7 +647,7 @@ int kthread_stop(struct task_struct *k)
 	return ret;
 }
 EXPORT_SYMBOL(kthread_stop);
-
+// 2号进程，所有内核线程的祖先， 可以在ps中看到
 int kthreadd(void *unused)
 {
 	struct task_struct *tsk = current;
@@ -656,27 +656,32 @@ int kthreadd(void *unused)
 	set_task_comm(tsk, "kthreadd");
 	ignore_signals(tsk);
 	set_cpus_allowed_ptr(tsk, housekeeping_cpumask(HK_FLAG_KTHREAD));
-	set_mems_allowed(node_states[N_MEMORY]);
+	set_mems_allowed(node_states[N_MEMORY]);// 允许kthreadd在所有CPU核心上运行
 
 	current->flags |= PF_NOFREEZE;
 	cgroup_init_kthreadd();
-
+	// 也是一个无限循环
 	for (;;) {
+		// 首先将线程状态设置为TASK_INTERRUPTIBLE, 
+		// 如果当前没有要创建的线程则主动放弃CPU完成调度此进程变为阻塞态
 		set_current_state(TASK_INTERRUPTIBLE);
 		if (list_empty(&kthread_create_list))
-			schedule();
+			schedule();//如果没有需要创建的内核线程，则什么也不做, 执行一次调度, 让出CPU
+		// 运行到此表示 kthreadd 线程当前被唤醒 设置进程运行状态为 TASK_RUNNING
 		__set_current_state(TASK_RUNNING);
 
 		spin_lock(&kthread_create_lock);
 		while (!list_empty(&kthread_create_list)) {
 			struct kthread_create_info *create;
-
+		// 从链表中取得 kthread_create_info结构的地址，
+		// 在上文中已经完成插入操作(将kthread_create_info结构中的lis成员加到链表中，
+		// 此时根据成员list的偏移获得create
 			create = list_entry(kthread_create_list.next,
 					    struct kthread_create_info, list);
 			list_del_init(&create->list);
 			spin_unlock(&kthread_create_lock);
 
-			create_kthread(create);
+			create_kthread(create);// 完成真正线程的创建
 
 			spin_lock(&kthread_create_lock);
 		}

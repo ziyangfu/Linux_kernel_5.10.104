@@ -3819,6 +3819,12 @@ done:
 }
 
 /* Build a SYN and send it off. */
+/**
+* 申请一个 skb，并将其设置为 SYN 包
+* 添加到发送队列上
+* 调用 tcp_transmit_skb 将该包发出
+* 启动一个重传定时器，超时会重发
+*/
 int tcp_connect(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);

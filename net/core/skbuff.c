@@ -702,6 +702,7 @@ EXPORT_SYMBOL(__kfree_skb);
  *	Drop a reference to the buffer and free it if the usage count has
  *	hit zero.
  */
+// 把包丢掉的最后路径
 void kfree_skb(struct sk_buff *skb)
 {
 	if (!skb_unref(skb))

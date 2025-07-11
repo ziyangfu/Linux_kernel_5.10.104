@@ -7,7 +7,7 @@
 #include <linux/mem_encrypt.h>
 
 /* PAGE_SHIFT determines the page size */
-#define PAGE_SHIFT		12   // 页全局9，页up 9， 页middle 9， 页表9， 偏移 12，总计48位
+#define PAGE_SHIFT		12   // 页全局9位，页up 9， 页middle 9， 页表9， 偏移 12，总计48位
 #define PAGE_SIZE		(_AC(1,UL) << PAGE_SHIFT)
 #define PAGE_MASK		(~(PAGE_SIZE-1))
 

@@ -59,15 +59,15 @@ struct upid {
 struct pid
 {
 	refcount_t count;
-	unsigned int level;
+	unsigned int level;		// // 所属命名空间层级
 	spinlock_t lock;
 	/* lists of tasks that use this pid */
-	struct hlist_head tasks[PIDTYPE_MAX];
+	struct hlist_head tasks[PIDTYPE_MAX];   // 不同类型的任务链表， 单链表
 	struct hlist_head inodes;
 	/* wait queue for pidfd notifications */
 	wait_queue_head_t wait_pidfd;
 	struct rcu_head rcu;
-	struct upid numbers[1];
+	struct upid numbers[1]; // 各级命名空间中的 PID 值
 };
 
 extern struct pid init_struct_pid;

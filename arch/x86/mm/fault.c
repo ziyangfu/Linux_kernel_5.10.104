@@ -1237,6 +1237,7 @@ do_kern_addr_fault(struct pt_regs *regs, unsigned long hw_error_code,
 NOKPROBE_SYMBOL(do_kern_addr_fault);
 
 /* Handle faults in the user portion of the address space */
+// 用户态缺页异常处理
 static inline
 void do_user_addr_fault(struct pt_regs *regs,
 			unsigned long hw_error_code,
@@ -1251,7 +1252,7 @@ void do_user_addr_fault(struct pt_regs *regs,
 	tsk = current;
 	mm = tsk->mm;
 
-	/* kprobes don't want to hook the spurious faults: */
+	/* kprobes don't want to hook the spurious【虚假的】 faults: */
 	if (unlikely(kprobe_page_fault(regs, X86_TRAP_PF)))
 		return;
 
@@ -1368,6 +1369,7 @@ retry:
 	if (likely(vma->vm_start <= address))
 		goto good_area;
 	// 上⾯第三种情况，vma 不是栈区，跳转到 bad_area
+	// VM_GROWSDOWN表示该 vma 中的地址增长方向是由高到底了，说明这个 vma 可能是栈区域
 	if (unlikely(!(vma->vm_flags & VM_GROWSDOWN))) {
 		bad_area(regs, hw_error_code, address);
 		return;
@@ -1446,11 +1448,16 @@ trace_page_fault_entries(struct pt_regs *regs, unsigned long error_code,
 	else
 		trace_page_fault_kernel(address, regs, error_code);
 }
-// arm64是do_page_fault(，x86是handle_page_fault
+// arm64是do_page_fault，x86是handle_page_fault
+// struct pt_regs 结构中存放的是缺页异常发生时，正在使用中的寄存器值的集合
+// address 表示触发缺页异常的虚拟内存地址
+// error_code 是对缺页异常的一个描述，目前内核只使用了 error_code 的前六个比特位来描述
+// 		引起缺页异常的具体原因
 static __always_inline void
 handle_page_fault(struct pt_regs *regs, unsigned long error_code,
 			      unsigned long address)
 {
+	// 一个tracepoint，根据user_mode选择user还是kernel
 	trace_page_fault_entries(regs, error_code, address);  // 这里可以跟踪缺页异常入口
 
 	if (unlikely(kmmio_fault(regs, address)))
@@ -1461,7 +1468,7 @@ handle_page_fault(struct pt_regs *regs, unsigned long error_code,
 	if (unlikely(fault_in_kernel_space(address))) {
 		// 如果缺页异常发生在内核空间，则由 vmalloc_fault 进行处理
         // 这里使用 unlikely 的原因是，内核对内存的使用通常是高优先级的而且使用比较频繁，
-		// 所以内核空间一般很少发生缺页异常。
+		// 内核空间在分配虚拟内存后，都会立即分配物理内存，所以内核空间一般很少发生缺页异常。
 		do_kern_addr_fault(regs, error_code, address);
 	} else {
 		// 缺页异常发生在用户态
@@ -1476,9 +1483,19 @@ handle_page_fault(struct pt_regs *regs, unsigned long error_code,
 		local_irq_disable();
 	}
 }
-
+/**
+ * CPU 会将发生缺页异常时，进程正在使用的相关寄存器中的值压入内核栈中。
+ * 比如，引起进程缺页异常的虚拟内存地址会被存放在 CR2 寄存器中。
+ * 同时 CPU 还会将缺页异常的错误码 error\_code 压入内核栈中
+ * 
+ * 缺页异常的表现形式有三种:
+ * 1. 虚拟内存没有映射物理内存，页表项都是空的
+ * 2. 虚拟内存映射了物理内存，但物理内存swap到了交换空间，此时页表项是有的
+ * 3. 虚拟内存映射了物理内存，页表项也有，但对物理内存的访问权限不够，例如写一个只读物理内存页
+*/
 DEFINE_IDTENTRY_RAW_ERRORCODE(exc_page_fault)
 {
+	// address 表示触发缺页异常的虚拟内存地址
 	unsigned long address = read_cr2();
 	irqentry_state_t state;
 	// 内核这⾥将 mmap_lock 预取到 cacheline 中，并标记为独占状态（ MESI 协议中的 X 状态
@@ -1505,6 +1522,19 @@ DEFINE_IDTENTRY_RAW_ERRORCODE(exc_page_fault)
 	 * The async #PF handling code takes care of idtentry handling
 	 * itself.
 	 */
+	/*
+	上述注释的解释：
+	注释解释了 KVM（基于内核的虚拟机）如何利用 x86 的 #PF（页错误异常） 
+	向客户机（guest）传递“页面不在内存”的事件（即异步页错误机制）。
+
+	简要说明如下：
+
+	1. 当用户任务访问合法但当前未映射（如被交换到磁盘）的内存时，触发异步页错误；
+	2. KVM 使用该机制通知客户机内存不可用；
+	3. 当内存恢复可用时，通过中断而非异常通知（见 sysvec_kvm_asyncpf_interrupt()）；
+	4. 要求中断上下文是安全的，并确保读取的数据一致；
+	5. 异步页错误处理自行管理 IDT（中断描述符表）入口
+	*/
 	if (kvm_handle_async_pf(regs, (u32)address))
 		return;
 

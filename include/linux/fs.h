@@ -632,6 +632,7 @@ struct fsnotify_mark_connector;
  * the RCU path lookup and 'stat' data) fields at the beginning
  * of the 'struct inode'
  */
+// 内存对文件的索引
 struct inode {
 	umode_t			i_mode;
 	unsigned short		i_opflags;
@@ -938,7 +939,7 @@ static inline int ra_has_index(struct file_ra_state *ra, pgoff_t index)
 	return (index >= ra->start &&
 		index <  ra->start + ra->size);
 }
-
+// 文件在内核中的描述
 struct file {
 	union {
 		struct llist_node	fu_llist;
@@ -1441,10 +1442,10 @@ struct sb_writers {
 // 超级块数据结构
 struct super_block {
 	// 指向超级块链表的指针
-	struct list_head	s_list;		/* Keep this first */
-	dev_t			s_dev;		/* search index; _not_ kdev_t */
-	unsigned char		s_blocksize_bits;
-	unsigned long		s_blocksize;
+	struct list_head	s_list;		/* Keep this first */  //  指向超级块链表的指针
+	dev_t			s_dev;		/* search index; _not_ kdev_t */  // 设备标识符
+	unsigned char		s_blocksize_bits;	// 以位为单位的块大小
+	unsigned long		s_blocksize;		// 以字节为单位的块大小
 	loff_t			s_maxbytes;	/* Max file size */
 	// 文件系统类型
 	struct file_system_type	*s_type;

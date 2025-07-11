@@ -36,6 +36,8 @@
 /* Use GFP_DMA32 memory */
 #define SLAB_CACHE_DMA32	((slab_flags_t __force)0x00008000U)
 /* DEBUG: Store the last owner for bug hunting */
+// 用于调试，表示需要跟踪对象的分配与释放信息，这样会在slab对象内存区域中额外
+// 增加两个sizeof(struct track)大小区域出来， 用于存储slab对象的分配与释放信息
 #define SLAB_STORE_USER		((slab_flags_t __force)0x00010000U)
 /* Panic if kmem_cache_create() fails */
 #define SLAB_PANIC		((slab_flags_t __force)0x00040000U)
@@ -550,6 +552,7 @@ static __always_inline void *kmalloc_large(size_t size, gfp_t flags)
  *	Try really hard to succeed the allocation but fail
  *	eventually.
  */
+// 分配一段物理内存连续的内存
 static __always_inline void *kmalloc(size_t size, gfp_t flags)
 {
 	if (__builtin_constant_p(size)) {

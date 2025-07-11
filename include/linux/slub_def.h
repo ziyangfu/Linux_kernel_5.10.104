@@ -40,18 +40,24 @@ enum stat_item {
 	NR_SLUB_STAT_ITEMS };
 /**
  * slab cache的本地CPU缓存结构
+ * 这里考虑到了多线程并发访问时带来的同步性能开销
+ * 所以这里的设计是多线程无锁化设计
 */
 struct kmem_cache_cpu {
 	// 指向被 CPU 本地缓存的 slab 中第⼀个空闲的对象
+	// 注意是空闲对象，当一个空闲对象分配出去后，freelist指针会移动到freelist的下一个空闲对象位置
 	void **freelist;	/* Pointer to next available object */
 	// 保证进程在 slab cache 中获取到的 cpu 本地缓存 kmem_cache_cpu 与当前执⾏进程的 cpu 是⼀致的
+	// 进程可能会被更高优先级的进程抢占，随后进程可能会被内核重新调度到别的核上
 	unsigned long tid;	/* Globally unique transaction id */
 	// slab cache 中 CPU 本地所缓存的 slab，由于 slab 底层的存储结构是内存⻚ page
 	// 所以这⾥直接⽤内存⻚ page 表⽰ slab
+	// slab分配对象的快速路径，将从这里分配
 	struct page *page;	/* The slab from which we are allocating */
 #ifdef CONFIG_SLUB_CPU_PARTIAL
 	// cpu cache 缓存的备⽤ slab 列表，同样也是⽤ page 表⽰
 	// 当被本地 cpu 缓存的 slab 中没有空闲对象时，内核会从 partial 列表中的 slab 中查找空闲对象
+	// 这里的slab会有很多个
 	struct page *partial;	/* Partially allocated frozen slabs */
 #endif
 #ifdef CONFIG_SLUB_STATS
@@ -90,7 +96,10 @@ struct kmem_cache_order_objects {
  * Slab cache management.
  */
 // slub小内存分配器
-// slab cache在内核中的数据结构
+// slab cache在内核中的数据结构，即slab对象池
+// 在内存中有很多个slab cache，每个slab cache都对应一个slab对象池，下辖多个slab
+// 然后在slab中多个object对象
+// 多个slab cache通过链表 struct list_head list 连起来
 struct kmem_cache { 
 	/** 每个 cpu 拥有⼀个本地缓存，⽤于⽆锁化快速分配释放对象
 	 * 这样⼀来，当进程需要向 slab cache 申请对应的内存块（object）时，⾸先会直接来到
@@ -174,6 +183,7 @@ struct kmem_cache {
 	unsigned int useroffset;	/* Usercopy region offset */
 	unsigned int usersize;		/* Usercopy region size */
 	// slab cache 中 numa node 中的缓存，每个 node ⼀个
+	// 对于普通家用的单处理器系统来说，NUMA节点只有一个
 	struct kmem_cache_node *node[MAX_NUMNODES];
 };
 

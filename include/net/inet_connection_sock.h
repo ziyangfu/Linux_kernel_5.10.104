@@ -79,6 +79,9 @@ struct inet_connection_sock_af_ops {
  * @icsk_probes_tstamp:    Probe timestamp (cleared by non-zero window ack)
  * @icsk_user_timeout:	   TCP_USER_TIMEOUT value
  */
+// 这里把inet_sock放在第一个位置是有原因的，可以通过指针的强制类型转换，实现继承机制
+// inet_connection_sock、inet_sock、sock的起始地址是一致的
+// C 标准保证：结构体的第一个字段的地址 == 整个结构体的地址
 struct inet_connection_sock {
 	/* inet_sock has to be the first member! */
 	struct inet_sock	  icsk_inet;

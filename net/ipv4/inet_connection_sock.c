@@ -915,10 +915,14 @@ EXPORT_SYMBOL(inet_csk_prepare_forced_close);
 
 int inet_csk_listen_start(struct sock *sk, int backlog)
 {
+	// 是因为 inet_connection_sock 是包含 sock 的。tcp_sock、inet_connection_sock、
+	// inet_sock、sock 是逐层嵌套的关系，类似面向对象里的继承的概念
+	// 因此这里可以强制类型转换
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct inet_sock *inet = inet_sk(sk);
 	int err = -EADDRINUSE;
-
+	//icsk->icsk_accept_queue 是接收队列
+	//接收队列内核对象的申请和初始化
 	reqsk_queue_alloc(&icsk->icsk_accept_queue);
 
 	sk->sk_ack_backlog = 0;
@@ -929,6 +933,7 @@ int inet_csk_listen_start(struct sock *sk, int backlog)
 	 * It is OK, because this socket enters to hash table only
 	 * after validation is complete.
 	 */
+	// 设置监听状态 TCP_LISTEN
 	inet_sk_state_store(sk, TCP_LISTEN);
 	if (!sk->sk_prot->get_port(sk, inet->inet_num)) {
 		inet->inet_sport = htons(inet->inet_num);

@@ -50,6 +50,7 @@ struct saved_syn {
 
 /* struct request_sock - mini sock to represent a connection request
  */
+// 这个结构体代表一个未完成的连接请求，它包含了三次握手过程中需要的各种信息
 struct request_sock {
 	struct sock_common		__req_common;
 #define rsk_refcnt			__req_common.skc_refcnt
@@ -58,15 +59,15 @@ struct request_sock {
 #define rsk_window_clamp		__req_common.skc_window_clamp
 #define rsk_rcv_wnd			__req_common.skc_rcv_wnd
 
-	struct request_sock		*dl_next;
+	struct request_sock		*dl_next;  // 链表指针
 	u16				mss;
 	u8				num_retrans; /* number of retransmits */
 	u8				syncookie:1; /* syncookie: encode tcpopts in timestamp */
 	u8				num_timeout:7; /* number of timeouts */
 	u32				ts_recent;
-	struct timer_list		rsk_timer;
+	struct timer_list		rsk_timer;   // 定时器（用于超时重传）
 	const struct request_sock_ops	*rsk_ops;
-	struct sock			*sk;
+	struct sock			*sk;   // 子 socket（建立后使用）
 	struct saved_syn		*saved_syn;
 	u32				secid;
 	u32				peer_secid;
@@ -175,13 +176,14 @@ struct request_sock_queue {
 	u8			rskq_defer_accept;
 
 	u32			synflood_warned;
-	atomic_t		qlen;
-	atomic_t		young;
-
+	atomic_t		qlen;   // 总请求数（含半连接 + 全连接）
+	atomic_t		young;  // 半连接请求数（SYN_RCVD）
+ 	//全连接队列的头和尾
+	// 用于维护已完成三次握手、等待 accept() 调用的全连接队列
 	struct request_sock	*rskq_accept_head;
 	struct request_sock	*rskq_accept_tail;
 	struct fastopen_queue	fastopenq;  /* Check max_qlen != 0 to determine
-					     * if TFO is enabled.
+					     * if TFO is enabled.  // TFO 快速打开相关
 					     */
 };
 
@@ -219,7 +221,7 @@ static inline void reqsk_queue_removed(struct request_sock_queue *queue,
 		atomic_dec(&queue->young);
 	atomic_dec(&queue->qlen);
 }
-
+// 把所有连接数和半连接数+1
 static inline void reqsk_queue_added(struct request_sock_queue *queue)
 {
 	atomic_inc(&queue->young);

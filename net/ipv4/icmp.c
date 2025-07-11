@@ -1057,6 +1057,9 @@ static bool icmp_discard(struct sk_buff *skb)
 /*
  *	Deal with incoming ICMP packets.
  */
+// 收到ICMP报文后的处理函数，
+// ping客户端： 接收到的ICMP reply传递给上方
+// ping服务端： 接收到的ICMP报文，发出ICMP reply给客户端
 int icmp_rcv(struct sk_buff *skb)
 {
 	struct icmphdr *icmph;

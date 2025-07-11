@@ -685,6 +685,8 @@ noinline void __ref rest_init(void)
 	 * the init task will end up wanting to create kthreads, which, if
 	 * we schedule it before we create kthreadd, will OOPS.
 	 */
+	// 创建1号进程,创建完之后就有2个进程运行了，
+	// 0号进程 idle 继续执行下面的工作， 1号进程开始从kernel_init运行
 	pid = kernel_thread(kernel_init, NULL, CLONE_FS);
 	/*
 	 * Pin init on the boot CPU. Task migration is not properly working
@@ -697,6 +699,7 @@ noinline void __ref rest_init(void)
 	rcu_read_unlock();
 
 	numa_default_policy();
+	// 创建2号进程
 	pid = kernel_thread(kthreadd, NULL, CLONE_FS | CLONE_FILES);
 	rcu_read_lock();
 	kthreadd_task = find_task_by_pid_ns(pid, &init_pid_ns);
@@ -719,6 +722,8 @@ noinline void __ref rest_init(void)
 	 */
 	schedule_preempt_disabled();
 	/* Call into cpu_idle with preempt disabled */
+	// 完成工作后，调用cpu_idle_loop()是的idle进程进入自己的事件处理循环
+	// 即无限循环执行 do_idle()
 	cpu_startup_entry(CPUHP_ONLINE);
 }
 
@@ -829,7 +834,7 @@ static void __init mm_init(void)
 	init_debug_pagealloc();
 	report_meminit();
 	mem_init();
-	kmem_cache_init();
+	kmem_cache_init();  // 创建并初始化 slab 分配器体系
 	kmemleak_init();
 	pgtable_init();
 	debug_objects_mem_init();
@@ -902,7 +907,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	vfs_caches_init_early();
 	sort_main_extable();
 	trap_init();
-	mm_init();
+	mm_init();  // 内存管理初始化
 
 	ftrace_init();
 
@@ -914,7 +919,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	 * timer interrupt). Full topology setup happens at smp_init()
 	 * time - but meanwhile we still have a functioning scheduler.
 	 */
-	sched_init();
+	sched_init();  // 调度、进程管理初始化
 
 	if (WARN(!irqs_disabled(),
 		 "Interrupts were enabled *very* early, fixing it\n"))
@@ -1055,7 +1060,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	kcsan_init();
 
 	/* Do the rest non-__init'ed, we're now alive */
-	arch_call_rest_init();
+	arch_call_rest_init();   // OS运行到这里实际还是无进程概念的状态
 
 	prevent_tail_call_optimization();
 }
@@ -1344,6 +1349,7 @@ static int run_init_process(const char *init_filename)
 	pr_debug("  with environment:\n");
 	for (p = envp_init; *p; p++)
 		pr_debug("    %s\n", *p);
+		// 执行了/sbin/init
 	return kernel_execve(init_filename, argv_init, envp_init);
 }
 
@@ -1404,7 +1410,7 @@ void __weak free_initmem(void)
 {
 	free_initmem_default(POISON_FREE_INITMEM);
 }
-
+// 演变为1号进程，最终会运行到第一顺位的 /sbin/init，在ubuntu上是一个软链接，指向systemd
 static int __ref kernel_init(void *unused)
 {
 	int ret;
@@ -1492,6 +1498,7 @@ static noinline void __init kernel_init_freeable(void)
 	/*
 	 * Wait until kthreadd is all set-up.
 	 */
+	// 要先等idle创建2号进程，并且2号进程创建完成，才能继续执行
 	wait_for_completion(&kthreadd_done);
 
 	/* Now the scheduler is fully set up and can do blocking allocations */
@@ -1500,18 +1507,20 @@ static noinline void __init kernel_init_freeable(void)
 	/*
 	 * init can allocate pages on any node
 	 */
-	set_mems_allowed(node_states[N_MEMORY]);
+	set_mems_allowed(node_states[N_MEMORY]);  // init进程可以分配物理页面
 
-	cad_pid = get_pid(task_pid(current));
+	cad_pid = get_pid(task_pid(current)); // 当前进程（1号）的pid给cad_pid
 
-	smp_prepare_cpus(setup_max_cpus);
+	smp_prepare_cpus(setup_max_cpus); // 进程可以在任何CPU核心上运行
 
 	workqueue_init();
 
 	init_mm_internals();
 
 	rcu_init_tasks_generic();
-	do_pre_smp_initcalls();
+	// 实例在init/main.c中，会通过函数do_one_initcall,执行Symbol中 
+	// __initcall_start与__initcall_end之间的函数
+	do_pre_smp_initcalls(); 
 	lockup_detector_init();
 
 	smp_init();

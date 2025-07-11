@@ -805,6 +805,7 @@ void __init fork_init(void)
 
 	/* create a slab on which task_structs can be allocated */
 	task_struct_whitelist(&useroffset, &usersize);
+	// 创建一个task_struct的slab对象
 	task_struct_cachep = kmem_cache_create_usercopy("task_struct",
 			arch_task_struct_size, align,
 			SLAB_PANIC|SLAB_ACCOUNT,
@@ -865,7 +866,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	tsk = alloc_task_struct_node(node);
 	if (!tsk)
 		return NULL;
-
+	// 为新任务结构体分配栈空间
 	stack = alloc_thread_stack_node(tsk, node);
 	if (!stack)
 		goto free_tsk;
@@ -2090,7 +2091,7 @@ static __latent_entropy struct task_struct *copy_process(
 #endif
 
 	/* Perform scheduler related setup. Assign this task to a CPU. */
-	// 将进程分配给某个CPU
+	// 调度器相关的设置，将进程分配给某个CPU
 	retval = sched_fork(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_policy;
@@ -2526,6 +2527,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 /*
  * Create a kernel thread.
  */
+// 内核线程创建函数
 pid_t kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 {
 	struct kernel_clone_args args = {

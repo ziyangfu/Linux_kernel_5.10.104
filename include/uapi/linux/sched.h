@@ -7,6 +7,7 @@
 /*
  * cloning flags:
  */
+// clone标识位
 #define CSIGNAL		0x000000ff	/* signal mask to be sent at exit */
 #define CLONE_VM	0x00000100	/* set if VM shared between processes */
 #define CLONE_FS	0x00000200	/* set if fs info shared between processes */

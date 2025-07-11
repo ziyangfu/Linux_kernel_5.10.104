@@ -287,7 +287,7 @@ struct tc_skb_ext {
 	__u16 mru;
 };
 #endif
-
+// skb 数据包链表
 struct sk_buff_head {
 	/* These two members must be first. */
 	struct sk_buff	*next;

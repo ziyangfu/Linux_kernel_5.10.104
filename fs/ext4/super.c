@@ -6658,6 +6658,7 @@ static inline int ext3_feature_set_ok(struct super_block *sb)
 	return 1;
 }
 
+// ext4的文件类型
 static struct file_system_type ext4_fs_type = {
 	.owner		= THIS_MODULE,
 	.name		= "ext4",

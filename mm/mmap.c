@@ -541,6 +541,7 @@ static int find_vma_links(struct mm_struct *mm, unsigned long addr,
 
 		if (vma_tmp->vm_end > addr) {
 			/* Fail if an existing vma overlaps the area */
+			// 查到了VMA重叠，返回失败ENOMEM
 			if (vma_tmp->vm_start < end)
 				return -ENOMEM;
 			__rb_link = &__rb_parent->rb_left;
@@ -1430,9 +1431,9 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	/* force arch specific MAP_FIXED handling in get_unmapped_area */
 	if (flags & MAP_FIXED_NOREPLACE)
 		flags |= MAP_FIXED;
-
+	// 如果未设置 MAP_FIXED，则将 addr 向上取整到 mmap_min_addr
 	if (!(flags & MAP_FIXED))
-		addr = round_hint_to_min(addr);
+		addr = round_hint_to_min(addr);  
 
 	/* Careful about overflows.. */
 	len = PAGE_ALIGN(len);
@@ -1606,6 +1607,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	return addr;
 }
 // 预处理大页映射
+// mmap系统调用与架构有关，在arch/<x86/arm64>/kernel/<sys_x86_64.c/sys.c>
 unsigned long ksys_mmap_pgoff(unsigned long addr, unsigned long len,
 			      unsigned long prot, unsigned long flags,
 			      unsigned long fd, unsigned long pgoff)
@@ -1657,7 +1659,7 @@ unsigned long ksys_mmap_pgoff(unsigned long addr, unsigned long len,
 	}
 
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
-	// 开始内存映射
+	// 开始内存映射,w位于 mm/util.c
 	retval = vm_mmap_pgoff(file, addr, len, prot, flags, pgoff);
 out_fput:
 	if (file)
@@ -1765,6 +1767,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	unsigned long charged = 0;
 
 	/* Check against address space limit. */
+	// 检查地址空间限制
 	if (!may_expand_vm(mm, vm_flags, len >> PAGE_SHIFT)) {
 		unsigned long nr_pages;
 
@@ -1772,6 +1775,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		 * MAP_FIXED may remove pages of mappings that intersects with
 		 * requested mapping. Account for the pages it would unmap.
 		 */
+		// MAP_FIXED 可能会移除与请求映射重叠的现有映射
 		nr_pages = count_vma_pages_range(mm, addr, addr + len);
 
 		if (!may_expand_vm(mm, vm_flags,
@@ -2866,6 +2870,7 @@ int __do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	arch_unmap(mm, start, end);
 
 	/* Find the first overlapping VMA */
+	// 查找与指定地址范围重叠的 VMA
 	vma = find_vma(mm, start);
 	if (!vma)
 		return 0;

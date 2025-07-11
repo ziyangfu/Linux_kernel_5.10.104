@@ -55,6 +55,7 @@ struct kmem_cache {
  * have the problem that the structures used for managing slab caches are
  * allocated from slab caches themselves.
  */
+// slab的状态
 enum slab_state {
 	DOWN,			/* No slab functionality yet */
 	PARTIAL,		/* SLUB: kmem_cache_node available */
@@ -553,7 +554,7 @@ struct kmem_cache_node {
 	unsigned long free_slabs;	/* length of free slab list only */
 	unsigned long free_objects;
 	unsigned int free_limit;
-	unsigned int colour_next;	/* Per-node cache coloring */
+	unsigned int colour_next;	/* Per-node cache coloring, slab 着色 */
 	struct array_cache *shared;	/* shared per node */
 	struct alien_cache **alien;	/* on other nodes */
 	unsigned long next_reap;	/* updated without locking */

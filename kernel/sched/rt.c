@@ -3,6 +3,7 @@
  * Real-Time Scheduling Class (mapped to the SCHED_FIFO and SCHED_RR
  * policies)
  */
+// 实时调度器实现
 #include "sched.h"
 
 #include "pelt.h"
@@ -1602,18 +1603,22 @@ static inline void set_next_task_rt(struct rq *rq, struct task_struct *p, bool f
 	rt_queue_push_tasks(rq);
 }
 
+// 根据优先级选择优先级队列中的任务
+// 主要依赖于优先级位图和对应的队列数组
 static struct sched_rt_entity *pick_next_rt_entity(struct rq *rq,
 						   struct rt_rq *rt_rq)
 {
+	// 获取活跃的优先级数组
 	struct rt_prio_array *array = &rt_rq->active;
 	struct sched_rt_entity *next = NULL;
 	struct list_head *queue;
 	int idx;
-
+	// 查找bitmap中第一个置位的位置。这个位置对应最高优先级的非空队列
 	idx = sched_find_first_bit(array->bitmap);
 	BUG_ON(idx >= MAX_RT_PRIO);
-
+	// 定位到具体队列
 	queue = array->queue + idx;
+	// 取出任务实体
 	next = list_entry(queue->next, struct sched_rt_entity, run_list);
 
 	return next;
@@ -1640,7 +1645,7 @@ static struct task_struct *pick_next_task_rt(struct rq *rq)
 	if (!sched_rt_runnable(rq))
 		return NULL;
 
-	p = _pick_next_task_rt(rq);
+	p = _pick_next_task_rt(rq);  // 获取实时调度中，优先级队列中的任务
 	set_next_task_rt(rq, p, true);
 	return p;
 }

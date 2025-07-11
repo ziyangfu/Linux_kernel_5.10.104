@@ -252,7 +252,7 @@ dl_entity_preempt(struct sched_dl_entity *a, struct sched_dl_entity *b)
  */
 struct rt_prio_array {
 	DECLARE_BITMAP(bitmap, MAX_RT_PRIO+1); /* include 1 bit for delimiter */
-	struct list_head queue[MAX_RT_PRIO];
+	struct list_head queue[MAX_RT_PRIO];  // 有100个队列
 };
 
 struct rt_bandwidth {
@@ -902,8 +902,8 @@ struct rq {
 	/*
 	 * nr_running and cpu_load should be in the same cacheline because
 	 * remote CPUs use both these fields when doing load calculation.
-	 */
-	unsigned int		nr_running;
+	 */ 
+	unsigned int		nr_running;  // 与 cpu_load 缓存行一致
 #ifdef CONFIG_NUMA_BALANCING
 	unsigned int		nr_numa_running;
 	unsigned int		nr_preferred_running;
@@ -931,9 +931,9 @@ struct rq {
 #define UCLAMP_FLAG_IDLE 0x01
 #endif
 
-	struct cfs_rq		cfs;
-	struct rt_rq		rt;
-	struct dl_rq		dl;
+	struct cfs_rq		cfs;  // 3个运行队列，CFS是红黑树
+	struct rt_rq		rt;	  // RT是链表数组， 100个优先级
+	struct dl_rq		dl;	  // 也是一颗红黑树
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	/* list of leaf cfs_rq on this CPU: */

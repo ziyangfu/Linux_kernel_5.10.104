@@ -12,6 +12,7 @@
  *   bit 4 ==				1: fault was an instruction fetch
  *   bit 5 ==				1: protection keys block access
  */
+// 缺页异常的错误码
 enum x86_pf_error_code {
 	X86_PF_PROT	=		1 << 0,
 	X86_PF_WRITE	=		1 << 1,

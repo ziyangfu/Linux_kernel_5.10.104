@@ -5719,6 +5719,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 	unsigned int len = skb->len;
 
 	/* TCP congestion window tracking */
+	// 拥塞窗口跟踪
 	trace_tcp_probe(sk, skb);
 
 	tcp_mstamp_refresh(tp);

@@ -172,6 +172,7 @@ struct scan_control {
 /*
  * From 0 .. 200.  Higher means more swappy.
  */
+// 这是默认值
 int vm_swappiness = 60;
 
 static void set_task_reclaim_state(struct task_struct *task,
@@ -1072,6 +1073,10 @@ static void page_check_dirty_writeback(struct page *page,
 /*
  * shrink_page_list() returns the number of reclaimed pages
  */
+/** 页面回收后期指向函数，主要操作是遍历链表中每一个页面，根据页面的属性确定将页面添加到回收队列、
+ * 活跃链表还是不活跃链表.这块遍历的链表是在上一级函数 shrink_inactive_list中定义的临时链表，
+ * 因为一次最多扫描32个页面，所有链表最多含有32个页面。在shrink_page_list这个函数中
+ * 还有一个重要操作是统计不同状态的页面数量并保存在scan_control结构体中 */
 static unsigned int shrink_page_list(struct list_head *page_list,
 				     struct pglist_data *pgdat,
 				     struct scan_control *sc,
@@ -2235,6 +2240,7 @@ enum scan_balance {
  * nr[0] = anon inactive pages to scan; nr[1] = anon active pages to scan
  * nr[2] = file inactive pages to scan; nr[3] = file active pages to scan
  */
+// 计算匿名页与文件页的扫描比例
 static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 			   unsigned long *nr)
 {

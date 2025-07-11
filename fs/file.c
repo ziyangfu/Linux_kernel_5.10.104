@@ -495,12 +495,12 @@ int __alloc_fd(struct files_struct *files,
 {
 	unsigned int fd;
 	int error;
-	struct fdtable *fdt;
+	struct fdtable *fdt;  // 文件描述符表
 
 	spin_lock(&files->file_lock);
 repeat:
 	fdt = files_fdtable(files);
-	fd = start;
+	fd = start;   // 刚开始，start是0，会repeat
 	if (fd < files->next_fd)
 		fd = files->next_fd;
 
@@ -552,7 +552,7 @@ static int alloc_fd(unsigned start, unsigned flags)
 {
 	return __alloc_fd(current->files, start, rlimit(RLIMIT_NOFILE), flags);
 }
-
+// current是一个task_struct结构体指针，当前进程的
 int __get_unused_fd_flags(unsigned flags, unsigned long nofile)
 {
 	return __alloc_fd(current->files, 0, nofile, flags);

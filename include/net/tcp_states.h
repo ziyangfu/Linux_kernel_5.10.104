@@ -10,16 +10,16 @@
 #define _LINUX_TCP_STATES_H
 
 enum {
-	TCP_ESTABLISHED = 1,
-	TCP_SYN_SENT,
-	TCP_SYN_RECV,
-	TCP_FIN_WAIT1,
-	TCP_FIN_WAIT2,
-	TCP_TIME_WAIT,
-	TCP_CLOSE,
-	TCP_CLOSE_WAIT,
-	TCP_LAST_ACK,
-	TCP_LISTEN,
+	TCP_ESTABLISHED = 1,  // 三次握手完成
+	TCP_SYN_SENT,		// 三次握手，客户端发送SYN后
+	TCP_SYN_RECV,		// 三次握手，服务端收到SYN后
+	TCP_FIN_WAIT1,		// 主动方（客户端）发送FIN后，四次挥手
+	TCP_FIN_WAIT2,		// 主动方（客户端）收到服务端发出的ACK指令后
+	TCP_TIME_WAIT,		// 主动方（客户端）收到客户端发送的FIN后，四次挥手
+	TCP_CLOSE,			
+	TCP_CLOSE_WAIT,		// 被动方（服务端）接收到FIN后，并发送ACK后，四次挥手
+	TCP_LAST_ACK,		// 被动方（服务端）发送FIN后，四次挥手
+	TCP_LISTEN,			// 服务端设置listen后，处于监听状态
 	TCP_CLOSING,	/* Now a valid state */
 	TCP_NEW_SYN_RECV,
 

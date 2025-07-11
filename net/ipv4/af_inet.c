@@ -193,6 +193,7 @@ static int inet_autobind(struct sock *sk)
 /*
  *	Move a socket into listening state.
  */
+// 设置套接字为监听（被动）状态
 int inet_listen(struct socket *sock, int backlog)
 {
 	struct sock *sk = sock->sk;
@@ -208,11 +209,12 @@ int inet_listen(struct socket *sock, int backlog)
 	old_state = sk->sk_state;
 	if (!((1 << old_state) & (TCPF_CLOSE | TCPF_LISTEN)))
 		goto out;
-
+	//设置全连接队列长度
 	WRITE_ONCE(sk->sk_max_ack_backlog, backlog);
 	/* Really, if the socket is already in listen state
 	 * we can only allow the backlog to be adjusted.
 	 */
+	//还不是 listen 状态（尚未 listen 过）
 	if (old_state != TCP_LISTEN) {
 		/* Enable TFO w/o requiring TCP_FASTOPEN socket option.
 		 * Note that only TCP sockets (SOCK_STREAM) will reach here.
@@ -227,7 +229,7 @@ int inet_listen(struct socket *sock, int backlog)
 			fastopen_queue_tune(sk, backlog);
 			tcp_fastopen_init_key_once(sock_net(sk));
 		}
-
+		//开始监听
 		err = inet_csk_listen_start(sk, backlog);
 		if (err)
 			goto out;
@@ -657,7 +659,7 @@ int __inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
 			if (err)
 				goto out;
 		}
-
+		// 这里实际调用的是 tcp_v4_connect方法
 		err = sk->sk_prot->connect(sk, uaddr, addr_len);
 		if (err < 0)
 			goto out;
@@ -835,6 +837,7 @@ EXPORT_SYMBOL(inet_sendpage);
 
 INDIRECT_CALLABLE_DECLARE(int udp_recvmsg(struct sock *, struct msghdr *,
 					  size_t, int, int, int *));
+// 会调用实际prot的函数，UDP或TCP
 int inet_recvmsg(struct socket *sock, struct msghdr *msg, size_t size,
 		 int flags)
 {

@@ -710,7 +710,8 @@ unlock:
 	spin_unlock_bh(lock);
 }
 EXPORT_SYMBOL_GPL(inet_unhash);
-
+// 为一个 TCP 套接字（sock）在连接时选择并绑定一个合适的本地端口，并将其插入到连接哈希表中
+// 整个系统中会维护一个所有使用过的端口的哈希表，它就是 hinfo->bhash
 int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 		struct sock *sk, u32 port_offset,
 		int (*check_established)(struct inet_timewait_death_row *,
@@ -719,6 +720,7 @@ int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 	struct inet_hashinfo *hinfo = death_row->hashinfo;
 	struct inet_timewait_sock *tw = NULL;
 	struct inet_bind_hashbucket *head;
+	//是否绑定过端口
 	int port = inet_sk(sk)->inet_num;
 	struct net *net = sock_net(sk);
 	struct inet_bind_bucket *tb;
@@ -728,6 +730,7 @@ int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 	int l3mdev;
 
 	if (port) {
+		// 已有端口处理：如果套接字已绑定端口，则尝试快速插入连接哈希表
 		head = &hinfo->bhash[inet_bhashfn(net, port,
 						  hinfo->bhash_size)];
 		tb = inet_csk(sk)->icsk_bind_hash;
@@ -759,10 +762,13 @@ int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 	offset &= ~1U;
 other_parity_scan:
 	port = low + offset;
+	// 端口查找策略：先尝试偶数偏移端口，再尝试奇数偏移。
 	for (i = 0; i < remaining; i += 2, port += 2) {
 		if (unlikely(port >= high))
 			port -= remaining;
-		if (inet_is_local_reserved_port(net, port))
+		// 如果你因为某种原因不希望某些端口被内核使用，那么就把它们写到 
+		// ip_local_reserved_ports 这个内核参数中就行了
+		if (inet_is_local_reserved_port(net, port))  // 是否是保留端口。是则跳过
 			continue;
 		head = &hinfo->bhash[inet_bhashfn(net, port,
 						  hinfo->bhash_size)];
@@ -772,12 +778,15 @@ other_parity_scan:
 		 * the established check is already unique enough.
 		 */
 		inet_bind_bucket_for_each(tb, &head->chain) {
+			// 如果端口已经被使用了
 			if (net_eq(ib_net(tb), net) && tb->l3mdev == l3mdev &&
 			    tb->port == port) {
 				if (tb->fastreuse >= 0 ||
 				    tb->fastreuseport >= 0)
 					goto next_port;
 				WARN_ON(hlist_empty(&tb->owners));
+				//通过 check_established 继续检查是否可用
+				// 四元组不一致，就是2条连接，可以继续使用
 				if (!check_established(death_row, sk,
 						       port, &tw))
 					goto ok;
@@ -802,7 +811,11 @@ next_port:
 	offset++;
 	if ((offset & 1) && remaining > 1)
 		goto other_parity_scan;
-
+// 遍历完所有端口都没找到合适的，就返回 -EADDRNOTAVAIL，
+// 你在用户程序上看到的就是 Cannot assign requested address 这个错误
+// 以后当你再遇到 Cannot assign requested address 错误，你应该想到去查一下 
+// net.ipv4.ip_local_port_range 中设置的可用端口的范围是不是太小了
+// 一般是 32768 - 60999
 	return -EADDRNOTAVAIL;
 
 ok:
@@ -832,9 +845,10 @@ int inet_hash_connect(struct inet_timewait_death_row *death_row,
 	u32 port_offset = 0;
 
 	if (!inet_sk(sk)->inet_num)
-		port_offset = inet_sk_port_offset(sk);
+		port_offset = inet_sk_port_offset(sk);  // 根据目的IP与目的端口生成一个随机数
+	// __inet_check_established 检查是否和现有 ESTABLISH 的连接是否冲突的时候用的函数
 	return __inet_hash_connect(death_row, sk, port_offset,
-				   __inet_check_established);
+				   __inet_check_established);  
 }
 EXPORT_SYMBOL_GPL(inet_hash_connect);
 

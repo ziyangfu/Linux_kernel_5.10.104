@@ -601,19 +601,19 @@ static void __enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	rb_insert_color_cached(&se->run_node,
 			       &cfs_rq->tasks_timeline, leftmost);
 }
-
+// 删除红黑树节点
 static void __dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
 	rb_erase_cached(&se->run_node, &cfs_rq->tasks_timeline);
 }
-
+// 获取红黑树最左边的节点
 struct sched_entity *__pick_first_entity(struct cfs_rq *cfs_rq)
 {
 	struct rb_node *left = rb_first_cached(&cfs_rq->tasks_timeline);
 
 	if (!left)
 		return NULL;
-
+	// 通过rb_node获取结构体sched_entity指针
 	return rb_entry(left, struct sched_entity, run_node);
 }
 
@@ -906,7 +906,7 @@ update_stats_wait_start(struct cfs_rq *cfs_rq, struct sched_entity *se)
 
 	__schedstat_set(se->statistics.wait_start, wait_start);
 }
-
+// 更新调度实体的等待时间统计信息
 static inline void
 update_stats_wait_end(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
@@ -929,6 +929,7 @@ update_stats_wait_end(struct cfs_rq *cfs_rq, struct sched_entity *se)
 			__schedstat_set(se->statistics.wait_start, delta);
 			return;
 		}
+		// 用于调度器统计等待时间的跟踪点
 		trace_sched_stat_wait(p, delta);
 	}
 
@@ -4446,6 +4447,7 @@ set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 		 * runqueue.
 		 */
 		update_stats_wait_end(cfs_rq, se);
+		// 删除红黑树节点
 		__dequeue_entity(cfs_rq, se);
 		update_load_avg(cfs_rq, se, UPDATE_TG);
 	}
@@ -4478,6 +4480,13 @@ wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se);
  * 3) pick the "last" process, for cache locality
  * 4) do not run the "skip" process, if something else is available
  */
+/**
+优先选择最左（最早）就绪的进程；
+如果当前进程（curr）更靠左，则优先考虑当前进程；
+跳过 skip 指定的进程（若存在）；
+如果有合适的“下个”或“上次”进程且不会造成不公平，则优先选择它们；
+最后清除相关“buddy”标记并返回选中的进程实体。
+*/
 static struct sched_entity *
 pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 {
@@ -4490,7 +4499,7 @@ pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 	 */
 	if (!left || (curr && entity_before(curr, left)))
 		left = curr;
-
+	// 理想情况下，直接就运行最左边的进程
 	se = left; /* ideally we run the leftmost entity */
 
 	/*
@@ -5710,7 +5719,7 @@ static struct {
 } nohz ____cacheline_aligned;
 
 #endif /* CONFIG_NO_HZ_COMMON */
-
+// 记录每个CPU的历史负载信息（如1秒、5秒、15秒平均负载）
 static unsigned long cpu_load(struct rq *rq)
 {
 	return cfs_rq_load_avg(&rq->cfs);
@@ -5900,7 +5909,7 @@ wake_affine_weight(struct sched_domain *sd, struct task_struct *p,
 
 	return this_eff_load < prev_eff_load ? this_cpu : nr_cpumask_bits;
 }
-
+// 决定是否立即迁移
 static int wake_affine(struct sched_domain *sd, struct task_struct *p,
 		       int this_cpu, int prev_cpu, int sync)
 {
@@ -7047,10 +7056,11 @@ preempt:
 	if (sched_feat(LAST_BUDDY) && scale && entity_is_task(se))
 		set_last_buddy(se);
 }
-
+// CFS调度器的下一个进程选定算法
 struct task_struct *
 pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
+	// cfs_rq中有一颗红黑树，各个进程的运行时间
 	struct cfs_rq *cfs_rq = &rq->cfs;
 	struct sched_entity *se;
 	struct task_struct *p;
@@ -7142,12 +7152,15 @@ simple:
 		put_prev_task(rq, prev);
 
 	do {
+		// 获取红黑树最左边的节点，即虚拟时间vtime最小
+		// 这里只是拿到了最小vtime的调度实体，还没从红黑树中摘除
 		se = pick_next_entity(cfs_rq, NULL);
+		// 在这里把调度实体从红黑树中摘除
 		set_next_entity(cfs_rq, se);
 		cfs_rq = group_cfs_rq(se);
 	} while (cfs_rq);
 
-	p = task_of(se);
+	p = task_of(se); // 根据se获取进程结构体
 
 done: __maybe_unused;
 #ifdef CONFIG_SMP
@@ -9584,6 +9597,7 @@ static int should_we_balance(struct lb_env *env)
  * Check this_cpu to ensure it is balanced within domain. Attempt to move
  * tasks if there is an imbalance.
  */
+// 主要的负载均衡函数，负责比较各CPU负载并执行迁移
 static int load_balance(int this_cpu, struct rq *this_rq,
 			struct sched_domain *sd, enum cpu_idle_type idle,
 			int *continue_balancing)

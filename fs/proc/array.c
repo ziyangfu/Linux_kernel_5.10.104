@@ -129,17 +129,23 @@ void proc_task_name(struct seq_file *m, struct task_struct *p, bool escape)
 static const char * const task_state_array[] = {
 
 	/* states in TASK_REPORT: */
-	"R (running)",		/* 0x00 */
-	"S (sleeping)",		/* 0x01 */
-	"D (disk sleep)",	/* 0x02 */
-	"T (stopped)",		/* 0x04 */
+	"R (running)",		/* 0x00 */   // 运行或者在就绪队列上等待运行
+	"S (sleeping)",		/* 0x01 */	 // 休眠，等待某个时间发生，如IO操作
+	// 磁盘休眠状态，也称不可中断的休眠状态，深度睡眠，不能通过信号唤醒
+	// 如进行磁盘读写等阻塞式IO操作时
+	"D (disk sleep)",	/* 0x02 */	 
+	"T (stopped)",		/* 0x04 */ // 停止态，可以由SIGSTOP信号触发
 	"t (tracing stop)",	/* 0x08 */
-	"X (dead)",		/* 0x10 */
+	// 进程终止，但尚未被父进程回收， 如子进程退出后，父进程未调用wait之前的状态
+	// 在任务列表中是看不到此状态的
+	"X (dead)",		/* 0x10 */		
+	// 僵尸态，进程已结束，但其内核数据结构仍保留，等待父进程读取退出状态。
+	// 场景：子进程结束后，父进程未调用wait()或waitpid()回收其资源
 	"Z (zombie)",		/* 0x20 */
 	"P (parked)",		/* 0x40 */
 
 	/* states beyond TASK_REPORT: */
-	"I (idle)",		/* 0x80 */
+	"I (idle)",		/* 0x80 */   // 空闲状态
 };
 
 static inline const char *get_task_state(struct task_struct *tsk)

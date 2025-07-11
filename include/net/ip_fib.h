@@ -301,7 +301,7 @@ static inline struct fib_table *fib_new_table(struct net *net, u32 id)
 {
 	return fib_get_table(net, id);
 }
-
+// 查找路由表
 static inline int fib_lookup(struct net *net, const struct flowi4 *flp,
 			     struct fib_result *res, unsigned int flags)
 {

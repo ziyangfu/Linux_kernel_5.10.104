@@ -272,7 +272,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	 * complete initialization after this.
 	 */
 	tcp_set_state(sk, TCP_SYN_SENT);  // 设置socket状态为TCP_SYN_SENT
-	err = inet_hash_connect(tcp_death_row, sk);
+	err = inet_hash_connect(tcp_death_row, sk);  // 动态选择一个端口
 	if (err)
 		goto failure;
 
@@ -1965,6 +1965,7 @@ int tcp_v4_rcv(struct sk_buff *skb)
 	th = (const struct tcphdr *)skb->data;
 	iph = ip_hdr(skb);
 lookup:
+ 	//根据数据包 header 中的 ip、端口信息查找到对应的socket
 	sk = __inet_lookup_skb(&tcp_hashinfo, skb, __tcp_hdrlen(th), th->source,
 			       th->dest, sdif, &refcounted);
 	if (!sk)
@@ -2773,7 +2774,7 @@ void tcp4_proc_exit(void)
 	unregister_pernet_subsys(&tcp4_net_ops);
 }
 #endif /* CONFIG_PROC_FS */
-
+// Linux内核中对TCP协议操作接口的集中定义，是实现TCP协议栈的关键结构之一
 struct proto tcp_prot = {
 	.name			= "TCP",
 	.owner			= THIS_MODULE,

@@ -72,7 +72,7 @@ extern unsigned int ptrs_per_p4d;
  * PGDIR_SHIFT determines what a top-level page table entry can map
  */
 #define PGDIR_SHIFT		39
-#define PTRS_PER_PGD		512
+#define PTRS_PER_PGD		512 // 全局页目录表 PGD 可以容纳的页目录项 pgd_t 的个数
 #define MAX_PTRS_PER_P4D	1
 
 #endif /* CONFIG_X86_5LEVEL */
@@ -81,19 +81,19 @@ extern unsigned int ptrs_per_p4d;
  * 3rd level page
  */
 #define PUD_SHIFT	30
-#define PTRS_PER_PUD	512
+#define PTRS_PER_PUD	512 // 上层页目录表 PUD 可以容纳的页目录项 pud_t 的个数
 
 /*
  * PMD_SHIFT determines the size of the area a middle-level
  * page table can map
  */
 #define PMD_SHIFT	21
-#define PTRS_PER_PMD	512
+#define PTRS_PER_PMD	512 // 中间页目录表 PMD 可以容纳的页目录项 pmd_t 的个数
 
 /*
  * entries per page directory level
  */
-#define PTRS_PER_PTE	512
+#define PTRS_PER_PTE	512  // 页表可以容纳的页表项 pte_t 的个数
 
 #define PMD_SIZE	(_AC(1, UL) << PMD_SHIFT)
 #define PMD_MASK	(~(PMD_SIZE - 1))

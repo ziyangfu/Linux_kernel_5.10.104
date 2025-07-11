@@ -410,6 +410,7 @@ EXPORT_SYMBOL(pid_task);
 /*
  * Must be called under rcu_read_lock().
  */
+// 通过pid在pid_namespace中查找task_struct
 struct task_struct *find_task_by_pid_ns(pid_t nr, struct pid_namespace *ns)
 {
 	RCU_LOCKDEP_WARN(!rcu_read_lock_held(),

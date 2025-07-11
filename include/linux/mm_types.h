@@ -400,6 +400,8 @@ struct vm_area_struct {
 	const struct vm_operations_struct *vm_ops;
 
 	/* Information about our backing store: */
+	// 如果是文件映射，内核会将我们要映射的文件，以及要映射的文件区域在文件中的 offset，
+	// 与 VMA 结构中的 vm_file，vm_pgoff 关联映射起来，它们由 mmap 系统调用参数 fd，offset 决定
 	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE
 					   units */
 	struct file * vm_file;		/* File we map to (can be NULL). */
@@ -690,7 +692,7 @@ struct mm_struct {
 	unsigned long cpu_bitmap[];
 };
 
-extern struct mm_struct init_mm;
+extern struct mm_struct init_mm;  // 内核主页表
 
 /* Pointer magic because the dynamic array size confuses some compilers. */
 static inline void mm_init_cpumask(struct mm_struct *mm)
@@ -831,9 +833,12 @@ typedef __bitwise unsigned int vm_fault_t;
  * @VM_FAULT_HINDEX_MASK:	mask HINDEX value
  *
  */
+// 用户态缺页异常的错误原因，会在handle_mm_fault中返回具体的原因
 enum vm_fault_reason {
 	VM_FAULT_OOM            = (__force vm_fault_t)0x000001,
 	VM_FAULT_SIGBUS         = (__force vm_fault_t)0x000002,
+	// VM_FAULT_MAJOR表示本次缺页所需要的物理内存页还不在内存中，
+	// 需要重新分配以及需要启动磁盘 IO，从磁盘中 swap in 进来。
 	VM_FAULT_MAJOR          = (__force vm_fault_t)0x000004,
 	VM_FAULT_WRITE          = (__force vm_fault_t)0x000008,
 	VM_FAULT_HWPOISON       = (__force vm_fault_t)0x000010,

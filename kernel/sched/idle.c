@@ -54,7 +54,7 @@ __setup("hlt", cpu_idle_nopoll_setup);
 
 static noinline int __cpuidle cpu_idle_poll(void)
 {
-	trace_cpu_idle(0, smp_processor_id());
+	trace_cpu_idle(0, smp_processor_id());  // power， tracepoint
 	stop_critical_timings();
 	rcu_idle_enter();
 	local_irq_enable();
@@ -392,7 +392,7 @@ void cpu_startup_entry(enum cpuhp_state state)
 {
 	arch_cpu_idle_prepare();
 	cpuhp_online_idle(state);
-	while (1)
+	while (1)  // 无限循环
 		do_idle();
 }
 

@@ -178,7 +178,7 @@ typedef struct {
 struct list_head {
 	struct list_head *next, *prev;
 };
-
+// 单链表
 struct hlist_head {
 	struct hlist_node *first;
 };

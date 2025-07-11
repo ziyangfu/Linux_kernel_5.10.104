@@ -34,7 +34,7 @@ static inline u32 udp_hashfn(const struct net *net, u32 num, u32 mask)
 {
 	return (num + net_hash_mix(net)) & mask;
 }
-
+// 首地址是inet_sock，也可以强制类型转换到sock
 struct udp_sock {
 	/* inet_sock has to be the first member */
 	struct inet_sock inet;

@@ -9,7 +9,7 @@
 
 /*
 
-Goals and Theory of Operation
+Goals and Theory of Operation 
 
 The primary goal of this feature is to reduce the kernel boot time,
 by doing various independent hardware delays and discovery operations

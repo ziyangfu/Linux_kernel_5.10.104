@@ -25,6 +25,13 @@
  * Davidlohr Bueso <davidlohr.bueso@hp.com>, June 2013.
  */
 
+/**
+ * ipc/shm.c 是 Linux 内核源码中的一个核心文件，位于 ipc/ 目录下，
+ * 负责实现 System V 共享内存（Shared Memory） 的内核级支持。
+ * 它是 System V IPC（Inter-Process Communication）机制的一部分，
+ * 与 msg.c 和 sem.c 一起构成了完整的 System V IPC 子系统
+*/
+
 #include <linux/slab.h>
 #include <linux/mm.h>
 #include <linux/hugetlb.h>

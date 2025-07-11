@@ -853,7 +853,7 @@ static inline int page_trans_huge_mapcount(struct page *page,
 	return mapcount;
 }
 #endif
-
+// 虚拟地址x转换为物理内存页的物理页地址
 static inline struct page *virt_to_head_page(const void *x)
 {
 	struct page *page = virt_to_page(x);

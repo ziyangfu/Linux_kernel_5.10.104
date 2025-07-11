@@ -82,11 +82,11 @@ struct io_uring_task;
 // 表示进程处于不可中断的等待状态
 // 这种状态下的进程不会对大多数信号做出响应，因此不能被信号唤醒。只有当它等待的特定事件发生时，进程才会继续执行。
 #define TASK_UNINTERRUPTIBLE		0x0002  
-#define __TASK_STOPPED			0x0004   //表示进程被停止执行
+#define __TASK_STOPPED			0x0004   //表示进程被停止执行，没死哈，可以被恢复的
 #define __TASK_TRACED			0x0008   //进程被跟踪
 /* Used in tsk->exit_state: */
-#define EXIT_DEAD			0x0010
-#define EXIT_ZOMBIE			0x0020
+#define EXIT_DEAD			0x0010     // 真的死了，父进程已回收子进程资源， task_struct即将free
+#define EXIT_ZOMBIE			0x0020   //  僵尸态，子进程退出后调用 do_exit()，将其状态设为 EXIT_ZOMBIE，等待父进程回收。
 #define EXIT_TRACE			(EXIT_ZOMBIE | EXIT_DEAD)
 /* Used in tsk->state again: */
 #define TASK_PARKED			0x0040
@@ -396,7 +396,7 @@ struct util_est {
  * to as large a range as necessary. This is for example reflected by
  * util_avg's SCHED_CAPACITY_SCALE.
  *
- * [Overflow issue]
+ * [Overflow issue] 溢出问题
  *
  * The 64-bit load_sum can have 4353082796 (=2^64/47742/88761) entities
  * with the highest load (=88761), always runnable on a single cfs_rq,
@@ -410,6 +410,19 @@ struct util_est {
  * Then it is the load_weight's responsibility to consider overflow
  * issues.
  */
+/**
+上面有一些定义，比如平均负载等等
+该代码定义了一个名为 sched_avg 的结构体，用于实现调度实体的平均负载、
+可运行和利用率的计算。它基于无限几何级数算法（参考 __update_load_avg_cfs_rq() 函数）。
+
+功能简要说明如下：
+
+记录调度实体的时间统计信息（如最后一次更新时间）
+累积负载（load_sum）、可运行时间（runnable_sum）和使用率（util_sum）
+计算平均负载（load_avg）、平均可运行比例（runnable_avg）和平均使用率（util_avg）
+支持频率和CPU容量缩放
+包含溢出处理机制以防止数值溢出
+*/
 struct sched_avg {
 	u64				last_update_time;
 	u64				load_sum;
@@ -656,7 +669,7 @@ struct task_struct {
 	struct thread_info		thread_info;
 #endif
 	/* -1 unrunnable, 0 runnable, >0 stopped: */
-	volatile long			state;
+	volatile long			state;  // 进程状态
 
 	/*
 	 * This begins the randomizable portion of task_struct. Only

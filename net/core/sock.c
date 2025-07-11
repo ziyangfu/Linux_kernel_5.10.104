@@ -2574,11 +2574,13 @@ void __sk_flush_backlog(struct sock *sk)
  */
 int sk_wait_data(struct sock *sk, long *timeo, const struct sk_buff *skb)
 {
+	// 当前进程(current)关联到所定义的等待队列项上
 	DEFINE_WAIT_FUNC(wait, woken_wake_function);
 	int rc;
-
+	// 调用 sk_sleep 获取 sock 对象下的 wait
 	add_wait_queue(sk_sleep(sk), &wait);
 	sk_set_bit(SOCKWQ_ASYNC_WAITDATA, sk);
+	// 通过调用schedule_timeout让出CPU，然后进行睡眠
 	rc = sk_wait_event(sk, timeo, skb_peek_tail(&sk->sk_receive_queue) != skb, &wait);
 	sk_clear_bit(SOCKWQ_ASYNC_WAITDATA, sk);
 	remove_wait_queue(sk_sleep(sk), &wait);
@@ -2895,7 +2897,15 @@ static void sock_def_error_report(struct sock *sk)
 	sk_wake_async(sk, SOCK_WAKE_IO, POLL_ERR);
 	rcu_read_unlock();
 }
+/**
+当套接字有数据可读时，唤醒等待该套接字的进程。具体逻辑如下：
 
+- 获取套接字的等待队列 wq；
+- 如果有进程在等待该套接字变为可读，则使用 wake_up_interruptible_sync_poll 唤醒它们，
+		并通知事件类型为可读（如 EPOLLIN）；
+- 同时调用 sk_wake_async 异步唤醒等待的进程；
+- 使用 rcu_read_lock/unlock 保护读取 sk_wq 的过程。
+*/
 void sock_def_readable(struct sock *sk)
 {
 	struct socket_wq *wq;
@@ -2966,6 +2976,8 @@ void sk_stop_timer_sync(struct sock *sk, struct timer_list *timer)
 }
 EXPORT_SYMBOL(sk_stop_timer_sync);
 
+
+// sock初始化，各种回调函数赋值
 void sock_init_data(struct socket *sock, struct sock *sk)
 {
 	sk_init_common(sk);
@@ -3004,7 +3016,7 @@ void sock_init_data(struct socket *sock, struct sock *sk)
 			af_family_clock_key_strings[sk->sk_family]);
 
 	sk->sk_state_change	=	sock_def_wakeup;
-	sk->sk_data_ready	=	sock_def_readable;
+	sk->sk_data_ready	=	sock_def_readable; // 数据OK回调在这里确定
 	sk->sk_write_space	=	sock_def_write_space;
 	sk->sk_error_report	=	sock_def_error_report;
 	sk->sk_destruct		=	sock_def_destruct;

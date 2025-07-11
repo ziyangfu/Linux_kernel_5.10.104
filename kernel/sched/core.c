@@ -2859,7 +2859,7 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 
 		success = 1;
 		trace_sched_waking(p);
-		p->state = TASK_RUNNING;
+		p->state = TASK_RUNNING;  // 当前运行进程本身是运行态
 		trace_sched_wakeup(p);
 		goto out;
 	}
@@ -3274,9 +3274,9 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	if (dl_prio(p->prio))
 		return -EAGAIN;
 	else if (rt_prio(p->prio))
-		p->sched_class = &rt_sched_class;
+		p->sched_class = &rt_sched_class;  // 实时调度类
 	else
-		p->sched_class = &fair_sched_class;
+		p->sched_class = &fair_sched_class;	// CFS调度类
 
 	init_entity_runnable_average(&p->se);
 
@@ -4362,6 +4362,7 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	 * higher scheduling class, because otherwise those loose the
 	 * opportunity to pull in more work from other CPUs.
 	 */
+	// 这是对CFS调度器的优化，直接调用pick_next_task_fair
 	if (likely(prev->sched_class <= &fair_sched_class &&
 		   rq->nr_running == rq->cfs.h_nr_running)) {
 
@@ -4380,7 +4381,7 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 
 restart:
 	put_prev_task_balance(rq, prev, rf);
-
+	// 这是通用做法，其他的调度器都得走这里，本质是调用基类，多态实现
 	for_each_class(class) {
 		p = class->pick_next_task(rq);
 		if (p)
@@ -4557,16 +4558,17 @@ static void __sched notrace __schedule(bool preempt)
 	balance_callback(rq);
 }
 
+// 上一个进程结束了
 void __noreturn do_task_dead(void)
 {
 	/* Causes final put_task_struct in finish_task_switch(): */
-	set_special_state(TASK_DEAD);
+	set_special_state(TASK_DEAD);  // 将当前任务状态设置为TASK_DEAD
 
 	/* Tell freezer to ignore us: */
 	current->flags |= PF_NOFREEZE;
 
 	__schedule(false);
-	BUG();
+	BUG();  // 不应该运行到这里
 
 	/* Avoid "noreturn function does return" - but don't continue if BUG() is a NOP: */
 	for (;;)
@@ -7139,7 +7141,7 @@ void __init sched_init(void)
 		rq->nr_running = 0;
 		rq->calc_load_active = 0;
 		rq->calc_load_update = jiffies + LOAD_FREQ;
-		init_cfs_rq(&rq->cfs);
+		init_cfs_rq(&rq->cfs);  // 对每个CPU核心初始化运行队列
 		init_rt_rq(&rq->rt);
 		init_dl_rq(&rq->dl);
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -7213,7 +7215,7 @@ void __init sched_init(void)
 	 * but because we are the idle thread, we just pick up running again
 	 * when this runqueue becomes "idle".
 	 */
-	init_idle(current, smp_processor_id());
+	init_idle(current, smp_processor_id());  // 初始化0号进程（idle进程）
 
 	calc_load_update = jiffies + LOAD_FREQ;
 

@@ -4114,7 +4114,7 @@ void kfree(const void *x)
 
 	if (unlikely(ZERO_OR_NULL_PTR(x)))
 		return;
-
+	// 定义与实现在 include/linux/mm.h
 	page = virt_to_head_page(x); // 通过虚拟内存地址找到内存块所在的 page
 	// 如果 page 不在 slab cache 的管理体系中，则直接释放回伙伴系统
 	if (unlikely(!PageSlab(page))) {
@@ -4363,6 +4363,7 @@ static struct kmem_cache * __init bootstrap(struct kmem_cache *static_cache)
 	return s;
 }
 
+// slub的初始化函数
 void __init kmem_cache_init(void)
 {
 	static __initdata struct kmem_cache boot_kmem_cache,
@@ -4391,15 +4392,21 @@ void __init kmem_cache_init(void)
 	kmem_cache_node = bootstrap(&boot_kmem_cache_node);
 
 	/* Now we can use the kmem_cache to allocate kmalloc slabs */
+	// 初始化上面提到的size index数组
 	setup_kmalloc_cache_index_table();
-	create_kmalloc_caches(0);
+	// 创建kmalloc_info数组中保存的各个内存块⼤⼩对应的 slab cache
+	// 最终将这些不同尺⼨的 slab cache 缓存在 kmalloc_caches 中
+	create_kmalloc_caches(0); // 在mm/slab_common.c中
 
 	/* Setup random freelists for each cache */
 	init_freelist_randomization();
 
 	cpuhp_setup_state_nocalls(CPUHP_SLUB_DEAD, "slub:dead", NULL,
 				  slub_cpu_dead);
-
+	/**
+	fzy@fzy-Lenovo:~$ dmesg | grep SLUB
+[    0.082136] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=8, Nodes=1
+	*/
 	pr_info("SLUB: HWalign=%d, Order=%u-%u, MinObjects=%u, CPUs=%u, Nodes=%u\n",
 		cache_line_size(),
 		slub_min_order, slub_max_order, slub_min_objects,

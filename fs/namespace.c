@@ -2814,6 +2814,8 @@ static bool mount_too_revealing(const struct super_block *sb, int *new_mnt_flags
  * Create a new mount using a superblock configuration and request it
  * be added to the namespace tree.
  */
+//   do_new_mount_fc()先是调用vfs_create_mount()创建 struct mount 结构，
+//   每个挂载的文件系统都对应于这样一个结构，接着调用 do_add_mount()完成挂载操作。
 static int do_new_mount_fc(struct fs_context *fc, struct path *mountpoint,
 			   unsigned int mnt_flags)
 {
@@ -3424,6 +3426,7 @@ struct dentry *mount_subtree(struct vfsmount *m, const char *name)
 }
 EXPORT_SYMBOL(mount_subtree);
 
+// mount 系统调用
 SYSCALL_DEFINE5(mount, char __user *, dev_name, char __user *, dir_name,
 		char __user *, type, unsigned long, flags, void __user *, data)
 {

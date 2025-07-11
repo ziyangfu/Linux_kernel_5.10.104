@@ -882,6 +882,8 @@ INDIRECT_CALLABLE_DECLARE(int inet6_recvmsg(struct socket *, struct msghdr *,
 static inline int sock_recvmsg_nosec(struct socket *sock, struct msghdr *msg,
 				     int flags)
 {
+	// 这里是调用各自的recvmsg函数，例如对于TCP来说，recvmsg对应的是inet_recvmsg
+	// 间接调用
 	return INDIRECT_CALL_INET(sock->ops->recvmsg, inet6_recvmsg,
 				  inet_recvmsg, sock, msg, msg_data_left(msg),
 				  flags);
@@ -1515,6 +1517,8 @@ int __sys_socket(int family, int type, int protocol)
 	return sock_map_fd(sock, flags & (O_CLOEXEC | O_NONBLOCK));
 }
 
+// 用户在调用socket系统调用后，实际是在内核中创建了多个相互关联的对象，如file、sock、socket，
+// 每个对象还定义了ops操作函数组合
 SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
 {
 	return __sys_socket(family, type, protocol);
@@ -1669,14 +1673,16 @@ int __sys_listen(int fd, int backlog)
 	struct socket *sock;
 	int err, fput_needed;
 	int somaxconn;
-
+	//根据 fd 查找 socket 内核对象
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (sock) {
+		//获取内核参数 net.core.somaxconn
 		somaxconn = sock_net(sock->sk)->core.sysctl_somaxconn;
 		if ((unsigned int)backlog > somaxconn)
 			backlog = somaxconn;
 
 		err = security_socket_listen(sock, backlog);
+		//调用协议栈注册的 listen 函数
 		if (!err)
 			err = sock->ops->listen(sock, backlog);
 
@@ -1684,7 +1690,7 @@ int __sys_listen(int fd, int backlog)
 	}
 	return err;
 }
-
+// listen最重要的工作是设置监听装填，以及申请和初始化接收队列，包括全连接队列和半连接队列
 SYSCALL_DEFINE2(listen, int, fd, int, backlog)
 {
 	return __sys_listen(fd, backlog);
@@ -2025,6 +2031,7 @@ int __sys_recvfrom(int fd, void __user *ubuf, size_t size, unsigned int flags,
 	err = import_single_range(READ, ubuf, size, &iov, &msg.msg_iter);
 	if (unlikely(err))
 		return err;
+    //根据用户传入的 fd 找到 socket 对象
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (!sock)
 		goto out;
@@ -2053,6 +2060,7 @@ out:
 	return err;
 }
 
+// fd:自己的socket描述符，ubuf：用于接收数据，sockaddr：对方的地址信息
 SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 		unsigned int, flags, struct sockaddr __user *, addr,
 		int __user *, addr_len)

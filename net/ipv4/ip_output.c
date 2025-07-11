@@ -480,6 +480,7 @@ int __ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 		goto packet_routed;
 
 	/* Make sure we can route this packet. */
+	//检查 socket 中是否有缓存的路由表
 	rt = (struct rtable *)__sk_dst_check(sk, 0);
 	if (!rt) {
 		__be32 daddr;
@@ -493,6 +494,8 @@ int __ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 		 * keep trying until route appears or the connection times
 		 * itself out.
 		 */
+		//没有缓存则展开查找
+  	    //则查找路由项， 并缓存到 socket 中
 		rt = ip_route_output_ports(net, fl4, sk,
 					   daddr, inet->inet_saddr,
 					   inet->inet_dport,

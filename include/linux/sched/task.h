@@ -17,7 +17,7 @@ struct css_set;
 
 /* All the bits taken by the old clone syscall. */
 #define CLONE_LEGACY_FLAGS 0xffffffffULL
-
+// 可以更精细的控制kernel_clone，也就是说可以通过控制参数，实现LWP
 struct kernel_clone_args {
 	u64 flags;
 	int __user *pidfd;

@@ -597,10 +597,37 @@ static void print_bad_pte(struct vm_area_struct *vma, unsigned long addr,
  * PFNMAP mappings in order to support COWable mappings.
  *
  */
+/*
+QWEN的翻译：
+vm_normal_page -- 该函数获取与一个页表项（pte）相关联的 struct page。
+
+"特殊" 映射不希望与 struct page 关联（要么它不存在，要么存在但它们不想访问）。在这种情况下，这里会返回 NULL。而 "正常" 映射确实拥有一个 struct page。
+
+存在两种主要情况。第一种，架构可能定义了一个 pte_special() 的 pte 标志位，在这种情况下，此函数实现非常简单。第二种，架构可能没有多余的 pte 标志位，这就需要一个更复杂的方案，如下所述。
+
+一个原始的 VM_PFNMAP 映射（即未进行写时复制 [COW] 的映射）总是被视为特殊映射（即使底层有有效且合法的 struct pages）。VM_PFNMAP 的写时复制页面则始终被认为是正常的。
+
+我们通过 remap_pfn_range() 设置的规则来识别 VM_PFNMAP 映射中的写时复制页面：vma 将设置 VM_PFNMAP 标志位，并且 vm_pgoff 指向第一个被映射的 PFN。因此，每个特殊映射都必须遵循以下规则：
+
+pfn_of_page == vma->vm_pgoff + ((addr - vma->vm_start) >> PAGE_SHIFT)
+对于正常映射，这个规则是不成立的。
+
+这种限制将这些映射限定为从虚拟地址到物理帧号（PFN）的线性转换。为了绕过这一限制，只要 vma 不是写时复制映射，我们允许任意映射；在这种情况下，我们知道所有的 pte 都是特殊的（因为没有任何 pte 被写时复制）。
+
+为了支持任意特殊映射的写时复制操作，我们引入了 VM_MIXEDMAP。
+
+VM_MIXEDMAP 映射同样可以包含带有或不带有 struct page 支持的内存，但区别在于所有具有 struct page（即那些 pfn_valid 返回 true 的页面）的页面都会被引用计数，并被视为 VM 中的正常页面。缺点是页面会被引用计数（这可能会较慢，并且对于某些 PFNMAP 用户来说可能不可行）。优点是我们不需要遵循 PFNMAP 映射的严格线性规则即可支持可写时复制的映射。
+*/
+/*
+vm_normal_page()函数返回的是什么样页面的struct page数据结构？
+为什么内存管理代码中需要这个函数
+答：这个函数的作用是获取与一个页表项（pte）相关联的 struct page
+*/ 
+// PGD PUD PMD PTE
 struct page *vm_normal_page(struct vm_area_struct *vma, unsigned long addr,
 			    pte_t pte)
 {
-	unsigned long pfn = pte_pfn(pte);
+	unsigned long pfn = pte_pfn(pte);  // 拿到物理帧号 PFN
 
 	if (IS_ENABLED(CONFIG_ARCH_HAS_PTE_SPECIAL)) {
 		if (likely(!pte_special(pte)))
@@ -4547,7 +4574,7 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		 * for the ifs and we later double check anyway with the
 		 * ptl lock held. So here a barrier will do.
 		 */
-		barrier();
+		barrier();  
 		// 这⾥ pmd 不是空的，表⽰现在是有⻚表存在的，但缺⻚虚拟内存地址在⻚表中的 pte 是空值
 		if (pte_none(vmf->orig_pte))
 		{
@@ -4703,7 +4730,7 @@ retry_pud:
 	} else {
 		pmd_t orig_pmd = *vmf.pmd;
 
-		barrier();
+		barrier();  // 加了一层全内存屏障，所有读写操作不能跨过该屏障
 		if (unlikely(is_swap_pmd(orig_pmd))) {
 			VM_BUG_ON(thp_migration_supported() &&
 					  !is_pmd_migration_entry(orig_pmd));
@@ -4796,7 +4823,10 @@ static inline void mm_account_fault(struct pt_regs *regs,
  * The mmap_lock may have been released depending on flags and our
  * return value.  See filemap_fault() and __lock_page_or_retry().
  */
-// 缺页异常处理
+// 用户态缺页异常处理核心逻辑
+// \return 返回一个 unsigned int 类型的位图 vm_fault_t，
+// 			通过这个位图可以简要描述一下在整个缺页异常处理的过程中究竟发生了哪些状况，
+//			方便内核对各种状况进行针对性处理。
 vm_fault_t handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 			   unsigned int flags, struct pt_regs *regs)
 {
@@ -4873,6 +4903,7 @@ int __p4d_alloc(struct mm_struct *mm, pgd_t *pgd, unsigned long address)
  * Allocate page upper directory.
  * We've already handled the fast-path in-line.
  */
+// 分配PUD页目录项
 int __pud_alloc(struct mm_struct *mm, p4d_t *p4d, unsigned long address)
 {
 	// 调⽤ get_zeroed_page 申请⼀个 4k 物理内存⻚并初始化为 0 值作为新的 PUD

@@ -18,21 +18,21 @@
 struct fs_pin;
 
 struct pid_namespace {
-	struct kref kref;
-	struct idr idr;
+	struct kref kref;   // 引用计数
+	struct idr idr;		// 用于管理 PID 到 struct pid 的映射
 	struct rcu_head rcu;
-	unsigned int pid_allocated;
-	struct task_struct *child_reaper;
+	unsigned int pid_allocated;	 	// 已经分配的 PID 数量
+	struct task_struct *child_reaper;	// 子进程回收者（类似 init 进程）
 	struct kmem_cache *pid_cachep;
-	unsigned int level;
+	unsigned int level;				// 当前命名空间的层级（0 表示初始命名空间）
 	struct pid_namespace *parent;
 #ifdef CONFIG_BSD_PROCESS_ACCT
 	struct fs_pin *bacct;
 #endif
-	struct user_namespace *user_ns;
+	struct user_namespace *user_ns;		// 关联的用户命名空间
 	struct ucounts *ucounts;
 	int reboot;	/* group exit code if this pidns was rebooted */
-	struct ns_common ns;
+	struct ns_common ns;  // 命名空间通用结构
 } __randomize_layout;
 
 extern struct pid_namespace init_pid_ns;

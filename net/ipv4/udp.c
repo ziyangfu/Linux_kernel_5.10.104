@@ -1707,9 +1707,19 @@ int udp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 }
 EXPORT_SYMBOL(udp_ioctl);
 
+/**
+从 UDP 套接字接收数据包。其主要功能如下：
+
+尝试从 reader_queue 中非阻塞地接收数据包；
+若队列为空，则尝试将 sk_receive_queue 数据迁移到 reader_queue 并再次查找；
+若仍无数据，进入等待，直到有新数据到达或超时；
+支持 PEEK 操作（不移除数据）和非阻塞模式；
+返回成功接收的 sk_buff 或 NULL。
+*/
 struct sk_buff *__skb_recv_udp(struct sock *sk, unsigned int flags,
 			       int noblock, int *off, int *err)
 {
+	// UDP的接收队列
 	struct sk_buff_head *sk_queue = &sk->sk_receive_queue;
 	struct sk_buff_head *queue;
 	struct sk_buff *last;
@@ -1719,6 +1729,8 @@ struct sk_buff *__skb_recv_udp(struct sock *sk, unsigned int flags,
 	queue = &udp_sk(sk)->reader_queue;
 	flags |= noblock ? MSG_DONTWAIT : 0;
 	timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
+	// 如果没有数据，且用户也允许等待，则将调用wait_for_more_packets()执行等待操作，
+	// 它加入会让用户进程进入睡眠状态
 	do {
 		struct sk_buff *skb;
 
@@ -1727,6 +1739,7 @@ struct sk_buff *__skb_recv_udp(struct sock *sk, unsigned int flags,
 			break;
 
 		error = -EAGAIN;
+		// UDP 接收队列 sk_queue 不空
 		do {
 			spin_lock_bh(&queue->lock);
 			skb = __skb_try_recv_from_queue(sk, queue, flags, off,
