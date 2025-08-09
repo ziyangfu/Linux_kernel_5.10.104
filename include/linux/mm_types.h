@@ -349,7 +349,7 @@ struct vm_area_struct {
 					   within vm_mm. */
 
 	/* linked list of VM areas per task, sorted by address */
-	// 通过双向循环链表串起所有的VMA，注意，这个链表是有循序的，地址升序排列
+	// 通过双向循环链表串起所有的VMA，注意，这个链表是有顺序的，地址升序排列
 	struct vm_area_struct *vm_next, *vm_prev;
 	// 需要根据特定虚拟内存地址在虚拟内存空间中查找特定的虚拟内存区域，使用红黑树可以显著减少
 	// 查找的时间
@@ -364,7 +364,7 @@ struct vm_area_struct {
 	unsigned long rb_subtree_gap;
 
 	/* Second cache line starts here. */
-	// 表示VAM属于哪个MM
+	// 表示VMA属于哪个MM
 	struct mm_struct *vm_mm;	/* The address space we belong to. */
 
 	/*

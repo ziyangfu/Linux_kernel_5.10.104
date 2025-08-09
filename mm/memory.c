@@ -386,7 +386,7 @@ void free_pgd_range(struct mmu_gather *tlb,
 		free_p4d_range(tlb, pgd, addr, next, floor, ceiling);
 	} while (pgd++, addr = next, addr != end);
 }
-
+/** 释放指定虚拟内存区域（vma）的页表，并优化相邻区域的页表释放操作 */
 void free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *vma,
 		unsigned long floor, unsigned long ceiling)
 {
@@ -398,8 +398,8 @@ void free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *vma,
 		 * Hide vma from rmap and truncate_pagecache before freeing
 		 * pgtables
 		 */
-		unlink_anon_vmas(vma);
-		unlink_file_vma(vma);
+		unlink_anon_vmas(vma); // 解除当前 vma 的匿名页和文件映射关系
+		unlink_file_vma(vma);  // 实现在 mm/mmap.c中
 
 		if (is_vm_hugetlb_page(vma)) {
 			hugetlb_free_pgd_range(tlb, addr, vma->vm_end,
@@ -1246,6 +1246,15 @@ copy_page_range(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma)
 	return ret;
 }
 
+/**
+ * 这段代码是Linux内核内存管理模块中的一个函数，主要功能是：
+
+	遍历并清理页表项（PTE）范围内的映射
+	对于存在的页面，解除映射并更新相关统计信息
+	对于交换条目，释放相应的交换和缓存
+	处理设备私有页面的特殊逻辑
+	必要时刷新TLB并释放页面
+*/
 static unsigned long zap_pte_range(struct mmu_gather *tlb,
 				struct vm_area_struct *vma, pmd_t *pmd,
 				unsigned long addr, unsigned long end,
@@ -1419,6 +1428,7 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 		 */
 		if (pmd_none_or_trans_huge_or_clear_bad(pmd))
 			goto next;
+		// 将PTE取消映射
 		next = zap_pte_range(tlb, vma, pmd, addr, next, details);
 next:
 		cond_resched();
@@ -1474,7 +1484,7 @@ static inline unsigned long zap_p4d_range(struct mmu_gather *tlb,
 
 	return addr;
 }
-
+// 取消指定虚拟内存地址范围的页面映射
 void unmap_page_range(struct mmu_gather *tlb,
 			     struct vm_area_struct *vma,
 			     unsigned long addr, unsigned long end,
@@ -1486,6 +1496,10 @@ void unmap_page_range(struct mmu_gather *tlb,
 	BUG_ON(addr >= end);
 	tlb_start_vma(tlb, vma);
 	pgd = pgd_offset(vma->vm_mm, addr);
+	/**
+	 * 遍历给定地址范围内的页全局目录(PGD)项
+	 * 对于每个有效的PGD项，调用zap_p4d_range函数来取消对应页表的映射
+	*/
 	do {
 		next = pgd_addr_end(addr, end);
 		if (pgd_none_or_clear_bad(pgd))
@@ -1495,7 +1509,7 @@ void unmap_page_range(struct mmu_gather *tlb,
 	tlb_end_vma(tlb, vma);
 }
 
-
+// 取消映射单个VMA
 static void unmap_single_vma(struct mmu_gather *tlb,
 		struct vm_area_struct *vma, unsigned long start_addr,
 		unsigned long end_addr,
@@ -1510,14 +1524,14 @@ static void unmap_single_vma(struct mmu_gather *tlb,
 	if (end <= vma->vm_start)
 		return;
 
-	if (vma->vm_file)
+	if (vma->vm_file)  // 关联了文件
 		uprobe_munmap(vma, start, end);
 
 	if (unlikely(vma->vm_flags & VM_PFNMAP))
 		untrack_pfn(vma, 0, 0);
 
 	if (start != end) {
-		if (unlikely(is_vm_hugetlb_page(vma))) {
+		if (unlikely(is_vm_hugetlb_page(vma))) {  // 映射的是大页，特殊处理
 			/*
 			 * It is undesirable to test vma->vm_file as it
 			 * should be non-null for valid hugetlb area.
@@ -1534,7 +1548,7 @@ static void unmap_single_vma(struct mmu_gather *tlb,
 				__unmap_hugepage_range_final(tlb, vma, start, end, NULL);
 				i_mmap_unlock_write(vma->vm_file->f_mapping);
 			}
-		} else
+		} else  // 普通页，取消映射
 			unmap_page_range(tlb, vma, start, end, details);
 	}
 }
@@ -1557,6 +1571,23 @@ static void unmap_single_vma(struct mmu_gather *tlb,
  * ensure that any thus-far unmapped pages are flushed before unmap_vmas()
  * drops the lock and schedules.
  */
+/**
+ * unmap_vmas - 取消由一系列vma覆盖的内存范围的映射
+ * @tlb: 调用者的struct mmu_gather的地址
+ * @vma: 起始的vma
+ * @start_addr: 开始取消映射的虚拟地址
+ * @end_addr: 结束取消映射的虚拟地址
+ *
+ * 取消vma列表中所有页面的映射。
+ *
+ * 只有在`start'和`end'之间的地址会被取消映射。
+ *
+ * VMA列表必须按升序虚拟地址顺序排列。
+ *
+ * unmap_vmas()假设调用者会在unmap_vmas()返回后刷新整个取消映射的地址范围。
+ * 因此这里唯一需要负责的是确保在unmap_vmas()释放锁和进行调度之前，
+ * 将目前已经取消映射的页面刷新掉。
+ */
 void unmap_vmas(struct mmu_gather *tlb,
 		struct vm_area_struct *vma, unsigned long start_addr,
 		unsigned long end_addr)
@@ -1566,6 +1597,7 @@ void unmap_vmas(struct mmu_gather *tlb,
 	mmu_notifier_range_init(&range, MMU_NOTIFY_UNMAP, 0, vma, vma->vm_mm,
 				start_addr, end_addr);
 	mmu_notifier_invalidate_range_start(&range);
+	// 遍历VMA链表，对每个VMA调用unmap_single_vma取消指定地址范围的映射
 	for ( ; vma && vma->vm_start < end_addr; vma = vma->vm_next)
 		unmap_single_vma(tlb, vma, start_addr, end_addr, NULL);
 	mmu_notifier_invalidate_range_end(&range);

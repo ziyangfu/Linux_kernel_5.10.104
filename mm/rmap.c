@@ -388,7 +388,15 @@ int anon_vma_fork(struct vm_area_struct *vma, struct vm_area_struct *pvma)
 	unlink_anon_vmas(vma);
 	return -ENOMEM;
 }
+/**
+ * 断开并释放虚拟内存区域(VMA)关联的所有匿名虚拟内存区域(anon_vma)：
 
+	遍历VMA关联的anon_vma_chain链表
+	从红黑树中移除每个anon_vma_chain节点
+	如果anon_vma为空(无关联页)，则保留到后续处理
+	否则从链表中删除并释放该anon_vma_chain
+	最后处理之前保留的空anon_vma，将其彻底释放
+*/
 void unlink_anon_vmas(struct vm_area_struct *vma)
 {
 	struct anon_vma_chain *avc, *next;

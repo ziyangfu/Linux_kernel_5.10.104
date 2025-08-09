@@ -25,6 +25,8 @@
  * (interval_tree.h) would work for you...
  */
 
+// 这是人写的代码嘛......
+
 #define INTERVAL_TREE_DEFINE(ITSTRUCT, ITRB, ITTYPE, ITSUBTREE,		      \
 			     ITSTART, ITLAST, ITSTATIC, ITPREFIX)	      \
 									      \

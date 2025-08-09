@@ -41,6 +41,7 @@ static inline unsigned long get_max_dump_pfn(void)
  * Each entry is a u64 representing the corresponding
  * physical page count.
  */
+// 实现了/proc/kpagecount文件的读取功能，用于暴露系统中每个物理页的引用计数
 static ssize_t kpagecount_read(struct file *file, char __user *buf,
 			     size_t count, loff_t *ppos)
 {
@@ -69,7 +70,7 @@ static ssize_t kpagecount_read(struct file *file, char __user *buf,
 		if (!ppage || PageSlab(ppage) || page_has_type(ppage))
 			pcount = 0;
 		else
-			pcount = page_mapcount(ppage);
+			pcount = page_mapcount(ppage);  // 对于有效页面，获取其映射计数
 
 		if (put_user(pcount, out)) {
 			ret = -EFAULT;

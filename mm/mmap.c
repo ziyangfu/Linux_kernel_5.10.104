@@ -139,6 +139,14 @@ void vma_set_page_prot(struct vm_area_struct *vma)
 /*
  * Requires inode->i_mapping->i_mmap_rwsem
  */
+/*
+ * 从共享内存映射结构中移除一个虚拟内存区域（VMA）。具体包括：
+		如果VMA标记了VM_DENYWRITE，则允许写访问文件
+		如果是共享映射，则取消映射的可写状态
+		刷新数据缓存并从区间树中移除该VMA
+		解锁数据缓存
+		整个过程需要持有inode->i_mapping->i_mmap_rwsem锁。
+ */
 static void __remove_shared_vm_struct(struct vm_area_struct *vma,
 		struct file *file, struct address_space *mapping)
 {
@@ -148,6 +156,8 @@ static void __remove_shared_vm_struct(struct vm_area_struct *vma,
 		mapping_unmap_writable(mapping);
 
 	flush_dcache_mmap_lock(mapping);
+	// 实现在 include/linux/interval_tree_generic.h
+	// 是用宏生成的实现，功能为从红黑树中删除指定的VMA节点
 	vma_interval_tree_remove(vma, &mapping->i_mmap);
 	flush_dcache_mmap_unlock(mapping);
 }
@@ -156,11 +166,13 @@ static void __remove_shared_vm_struct(struct vm_area_struct *vma,
  * Unlink a file-based vm structure from its interval tree, to hide
  * vma from rmap and vmtruncate before freeing its page tables.
  */
+// 在 mm/memory.c 中使用
 void unlink_file_vma(struct vm_area_struct *vma)
 {
-	struct file *file = vma->vm_file;
+	struct file *file = vma->vm_file;  // 获取文件
 
 	if (file) {
+		// 获取文件对应的映射，page cache
 		struct address_space *mapping = file->f_mapping;
 		i_mmap_lock_write(mapping);
 		__remove_shared_vm_struct(vma, file, mapping);
@@ -2708,6 +2720,12 @@ static void remove_vma_list(struct mm_struct *mm, struct vm_area_struct *vma)
  *
  * Called with the mm semaphore held.
  */
+/**
+ * 这段代码的功能是释放指定虚拟内存区域的页表信息。主要步骤包括：
+ * 准备TLB（Translation Lookaside Buffer）清理、
+ * 更新RSS水位、解除虚拟内存映射以及释放页表。
+ * 这是内存管理中的核心操作，用于清理不再需要的内存映射。
+*/
 static void unmap_region(struct mm_struct *mm,
 		struct vm_area_struct *vma, struct vm_area_struct *prev,
 		unsigned long start, unsigned long end)
@@ -2717,8 +2735,8 @@ static void unmap_region(struct mm_struct *mm,
 
 	lru_add_drain();
 	tlb_gather_mmu(&tlb, mm, start, end);
-	update_hiwater_rss(mm);
-	unmap_vmas(&tlb, vma, start, end);
+	update_hiwater_rss(mm);  // 在 include/linux/mm.h 中
+	unmap_vmas(&tlb, vma, start, end);  // 解除了VMA与物理页之间的映射
 	free_pgtables(&tlb, vma, prev ? prev->vm_end : FIRST_USER_ADDRESS,
 				 next ? next->vm_start : USER_PGTABLES_CEILING);
 	tlb_finish_mmu(&tlb, start, end);
@@ -2848,12 +2866,24 @@ int split_vma(struct mm_struct *mm, struct vm_area_struct *vma,
  * work.  This now handles partial unmappings.
  * Jeremy Fitzhardinge <jeremy@goop.org>
  */
+/**
+ * 参数验证和预处理
+ * 架构特定处理
+ * VMA（Virtual Memory Area）查找和分割
+ * 用户页错误处理（userfaultfd）
+ * VMA 管理结构更新；从进程的红黑树中移除相关的 VMA 结构， 更新 VMA 链表
+ * 
+ * 实际更新页表，解除虚拟地址到物理地址的映射
+ * 释放不再需要的 VMA 结构
+ * 更新进程的内存使用统计
+ * 返回操作结果
+*/
 int __do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 		struct list_head *uf, bool downgrade)
 {
 	unsigned long end;
 	struct vm_area_struct *vma, *prev, *last;
-
+	// 检测地址范围，参数验证与对齐处理
 	if ((offset_in_page(start)) || start > TASK_SIZE || len > TASK_SIZE-start)
 		return -EINVAL;
 
@@ -2867,6 +2897,8 @@ int __do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	 * and finish any rbtree manipulation before this code
 	 * runs and also starts to manipulate the rbtree.
 	 */
+	// 架构特定的解除映射处理
+	// 对于X86，不做处理，对于ARM64,没有文件，估计也不做处理
 	arch_unmap(mm, start, end);
 
 	/* Find the first overlapping VMA */
@@ -2945,6 +2977,7 @@ int __do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	}
 
 	/* Detach vmas from rbtree */
+	// 从进程红黑树中移除相关的 VMA 
 	if (!detach_vmas_to_be_unmapped(mm, vma, prev, end))
 		downgrade = false;
 
@@ -2954,7 +2987,7 @@ int __do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	unmap_region(mm, vma, prev, start, end);
 
 	/* Fix up all other VM information */
-	remove_vma_list(mm, vma);
+	remove_vma_list(mm, vma); // 从双向循环链表中移除相关的 VMA 
 
 	return downgrade ? 1 : 0;
 }
@@ -2974,7 +3007,7 @@ static int __vm_munmap(unsigned long start, size_t len, bool downgrade)
 	if (mmap_write_lock_killable(mm))
 		return -EINTR;
 
-	ret = __do_munmap(mm, start, len, &uf, downgrade);
+	ret = __do_munmap(mm, start, len, &uf, downgrade);  // 实际的解除映射
 	/*
 	 * Returning 1 indicates mmap_lock is downgraded.
 	 * But 1 is not legal return value of vm_munmap() and munmap(), reset
@@ -2995,7 +3028,7 @@ int vm_munmap(unsigned long start, size_t len)
 	return __vm_munmap(start, len, false);
 }
 EXPORT_SYMBOL(vm_munmap);
-
+// 取消映射这块内存，给定虚拟内存地址，与内存区域大小
 SYSCALL_DEFINE2(munmap, unsigned long, addr, size_t, len)
 {
 	addr = untagged_addr(addr);
